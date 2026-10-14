@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendar Comun</title>
+<style>
+  :root{
+    --bg:#f6f5f2; --panel:#ffffff; --text:#1d1d1f; --muted:#6b6b70; --line:#e6e4df;
+    --a:#2f6fde; --a-soft:#e4edfc; --b:#d9487a; --b-soft:#fbe6ee;
+    --today:#fff7e0; --warn:#a35f00; --warn-soft:#fff1d6; --ok:#23794a; --ok-soft:#e3f4ea; --now:#e5484d;
+    --shadow:0 6px 24px rgba(0,0,0,.08);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#141416; --panel:#1d1d20; --text:#f1f1f3; --muted:#9a9aa2; --line:#2c2c31;
+      --a:#6b9bff; --a-soft:#1f2b45; --b:#ff7aa6; --b-soft:#43202d; --today:#2a2618;
+      --warn:#ffb547; --warn-soft:#3a2c12; --ok:#5fd18e; --ok-soft:#173326; --now:#ff6369;
+      --shadow:0 6px 24px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#141416; --panel:#1d1d20; --text:#f1f1f3; --muted:#9a9aa2; --line:#2c2c31;
+    --a:#6b9bff; --a-soft:#1f2b45; --b:#ff7aa6; --b-soft:#43202d; --today:#2a2618;
+    --warn:#ffb547; --warn-soft:#3a2c12; --ok:#5fd18e; --ok-soft:#173326; --now:#ff6369;
+    --shadow:0 6px 24px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  button,input,select,textarea{font:inherit;color:inherit}
+  h2{font-size:16px;margin:0 0 8px}
+  .meta{color:var(--muted);font-size:12.5px}
+  .grow{flex:1;min-width:0}
+  .spacer{flex:1}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+  /* Header */
+  header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line)}
+  .top{display:flex;gap:10px;align-items:center;padding:10px 16px 6px;flex-wrap:wrap}
+  h1{font-size:17px;margin:0 6px 0 0}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .seg button{border:0;background:transparent;padding:5px 12px;cursor:pointer;display:flex;gap:6px;align-items:center}
+  .seg button.on{background:var(--text);color:var(--panel)}
+  .clock{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px;cursor:pointer;font-size:13px}
+  .clock.sim{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+  .btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:6px 12px;cursor:pointer}
+  .btn:hover{background:var(--bg)}
+  .btn.primary{background:var(--text);color:var(--panel);border-color:var(--text)}
+  .quick{padding:4px 16px 8px}
+  .quick input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px 14px;font-size:15px}
+  .quick input:focus{outline:2px solid var(--a);outline-offset:-1px}
+  #qcPrev{font-size:12.5px;color:var(--muted);min-height:18px;padding:3px 4px 0}
+  .tabs{display:flex;gap:4px;padding:0 12px;overflow-x:auto;scrollbar-width:none}
+  .tabs button{border:0;background:transparent;padding:9px 10px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;color:var(--muted)}
+  .tabs button.on{color:var(--text);border-bottom-color:var(--text);font-weight:600}
+  .count{background:var(--b);color:#fff;border-radius:999px;font-size:11px;padding:0 6px;margin-left:2px}
+
+  main{padding:14px 16px 90px}
+  .stack{max-width:720px;margin:0 auto;display:grid;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+  .chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 11px;cursor:pointer;font-size:13px;display:inline-flex;gap:4px;align-items:center}
+  .chip:hover{background:var(--bg)}
+  .chip.on{background:var(--text);color:var(--panel);border-color:var(--text)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .warn{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:13.5px}
+  .okmsg{background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:8px 12px;font-size:13.5px}
+  .big{font-size:18px;text-align:center;padding:12px 0}
+
+  /* Now */
+  .greet{font-size:20px;font-weight:700}
+  .sumline{margin:4px 0 10px}
+  .energy{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+  .energy>span{font-size:13px;color:var(--muted);margin-right:4px}
+  .her-energy{margin-top:8px;font-size:13.5px}
+  .nudge{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+  .nudge:first-of-type{border-top:0}
+  .next{border:2px solid var(--a)}
+  .next .title{font-size:22px;font-weight:700;display:flex;gap:8px;align-items:center}
+  .countdown{font-size:38px;font-weight:800;letter-spacing:-1px;line-height:1.1;margin:6px 0 2px}
+  .sub{font-size:15px;margin-bottom:10px}
+  .meter{height:10px;background:var(--bg);border-radius:99px;overflow:hidden;margin:6px 0 12px}
+  .meter i{display:block;height:100%;background:var(--a);border-radius:99px;transition:width .6s}
+  .meter.low i{background:var(--warn)}
+  .steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .step{padding:5px 10px;border-radius:10px;background:var(--bg);font-size:13px}
+  .step.past{opacity:.45;text-decoration:line-through}
+  .step.cur{outline:2px solid var(--a);font-weight:600}
+  .checklist{margin:4px 0 12px}
+  .checklist label{display:flex;gap:10px;align-items:center;padding:5px 0;font-size:16px;cursor:pointer}
+  .checklist input{width:20px;height:20px}
+  .checklist .done{text-decoration:line-through;color:var(--muted)}
+  .status-btns{display:flex;gap:6px;flex-wrap:wrap}
+  .status-btns .chip{font-size:14px;padding:7px 13px}
+  .after{color:var(--muted);font-size:13.5px;padding:0 6px}
+  .today-list .item{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:17px;cursor:pointer}
+  .today-list .item:last-child{border-bottom:0}
+  .today-list .item.past{opacity:.45}
+  .item .em{font-size:24px;width:30px;text-align:center}
+  .item .bar,.row .bar{width:4px;align-self:stretch;border-radius:2px;flex:none}
+  details summary{cursor:pointer;color:var(--muted);font-size:13.5px;padding-top:8px}
+  .rev{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+  .rev:first-of-type{border-top:0}
+  .btns{display:flex;gap:6px;flex-wrap:wrap}
+
+  /* Toolbar */
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 auto 10px}
+  .range{font-weight:600;padding:0 6px}
+  .legend{display:flex;gap:12px;color:var(--muted);font-size:12px;flex-wrap:wrap}
+  .legend span{display:flex;gap:5px;align-items:center}
+  .sw{width:14px;height:10px;border-radius:3px;display:inline-block}
+  .sw.hatch{background:repeating-linear-gradient(45deg,var(--line) 0 3px,transparent 3px 6px);border:1px solid var(--line)}
+  .sw.bufsw{background:repeating-linear-gradient(-45deg,var(--a-soft) 0 3px,transparent 3px 6px);border:1px dashed var(--a)}
+
+  /* Week grid */
+  .grid{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:auto;box-shadow:var(--shadow);max-height:calc(100vh - 230px)}
+  .head,.body{display:grid;grid-template-columns:52px repeat(7,minmax(96px,1fr));min-width:740px}
+  .head{position:sticky;top:0;background:var(--panel);z-index:4;border-bottom:1px solid var(--line)}
+  .head>div{padding:6px 4px;text-align:center;font-size:12px;color:var(--muted)}
+  .head b{display:block;font-size:18px;color:var(--text);margin:0 auto}
+  .head .is-today b{background:var(--text);color:var(--panel);border-radius:50%;width:32px;height:32px;line-height:32px}
+  .hmeta{display:block;min-height:16px;font-size:12px}
+  .hours div{height:var(--h);font-size:11px;color:var(--muted);text-align:right;padding-right:6px;transform:translateY(-7px)}
+  .col{position:relative;overflow:hidden;border-left:1px solid var(--line);background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--h) - 1px),var(--line) calc(var(--h) - 1px),var(--line) var(--h));cursor:copy}
+  .col.today{background-color:var(--today)}
+  .buf{position:absolute;left:2px;right:2px;border-radius:5px;background:repeating-linear-gradient(-45deg,var(--a-soft) 0 4px,transparent 4px 8px);border:1px dashed var(--a);opacity:.55;pointer-events:none}
+  .nowline{position:absolute;left:0;right:0;height:2px;background:var(--now);z-index:3;pointer-events:none}
+  .nowline::before{content:"";position:absolute;left:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now)}
+  .ev{position:absolute;border-radius:6px;padding:3px 6px;font-size:12px;overflow:hidden;cursor:pointer;border-left:3px solid;line-height:1.25;z-index:2}
+  .ev.a{background:var(--a-soft);border-color:var(--a)}
+  .ev.b{background:var(--b-soft);border-color:var(--b)}
+  .ev.private{background-image:repeating-linear-gradient(45deg,transparent 0 6px,rgba(127,127,127,.13) 6px 12px)}
+  .ev.done{opacity:.55}
+  .ev .t{font-weight:600}
+  .ev .m{color:var(--muted);font-size:11px}
+
+  /* Agenda */
+  .day{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .day h3{margin:0;padding:10px 14px;font-size:13.5px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+  .day.today h3{background:var(--today)}
+  .row{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;align-items:flex-start}
+  .row:last-child{border-bottom:0}
+  .row.dim{opacity:.55}
+  .row .time{width:96px;color:var(--muted);flex:none}
+  .empty{padding:10px 14px;color:var(--muted);font-size:13px}
+  .tag{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:6px;color:var(--muted);white-space:nowrap}
+
+  /* Plan */
+  .wide{max-width:1000px;margin:0 auto;display:grid;gap:12px}
+  .ptable{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .prow{display:grid;grid-template-columns:110px 1fr 1fr 1.1fr;border-bottom:1px solid var(--line)}
+  .prow:last-child{border-bottom:0}
+  .prow>div{padding:9px 12px;border-left:1px solid var(--line);font-size:13.5px;display:grid;gap:4px;align-content:start}
+  .prow>div:first-child{border-left:0;font-weight:600}
+  .prow.ph>div{font-size:12px;color:var(--muted);font-weight:600;background:var(--bg)}
+  .prow.today>div:first-child{background:var(--today)}
+  .pitem{border-left:3px solid;padding:2px 7px;border-radius:5px;cursor:pointer}
+  .pitem.a{background:var(--a-soft);border-color:var(--a)}
+  .pitem.b{background:var(--b-soft);border-color:var(--b)}
+  .ritual label{display:flex;gap:10px;align-items:center;padding:4px 0;cursor:pointer}
+  .ritual input{width:18px;height:18px}
+  .ritual .done{text-decoration:line-through;color:var(--muted)}
+  @media (max-width:720px){
+    .prow{grid-template-columns:1fr 1fr}
+    .prow>div:first-child{grid-column:1/-1;border-bottom:1px solid var(--line)}
+    .prow>div:last-child{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}
+    .prow>div:nth-child(2){border-left:0}
+    .prow.ph{display:none}
+  }
+
+  /* Dialog */
+  dialog{border:0;border-radius:16px;padding:0;width:min(460px,calc(100vw - 24px));max-height:calc(100vh - 24px);background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+  dialog::backdrop{background:rgba(0,0,0,.4)}
+  .f{padding:18px;display:grid;gap:12px}
+  .f h2{font-size:18px;margin:0}
+  .f label:not(.chip):not(.switch){display:grid;gap:4px;font-size:12px;color:var(--muted)}
+  .f input:not([type=checkbox]),.f select,.f textarea{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--bg);width:100%}
+  .titlerow{display:flex;gap:8px}
+  .titlerow .emo{width:56px!important;text-align:center;font-size:18px;flex:none}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .three{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px}
+  .hint{font-size:13px;color:var(--a)}
+  .fs{display:grid;gap:6px}
+  .lbl{font-size:12px;color:var(--muted)}
+  .switch{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:11px;font-size:14px;cursor:pointer}
+  .switch small{display:block;color:var(--muted);font-size:12px}
+  .switch input{width:20px;height:20px;flex:none}
+  .clrow{display:flex;gap:8px;align-items:center;font-size:14px}
+  .clrow span{flex:1}
+  .clrow button{border:0;background:none;cursor:pointer;color:var(--muted);font-size:16px}
+  .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .actions .del{margin-right:auto;color:#d33}
+  .ro{font-size:13.5px;background:var(--bg);border-radius:9px;padding:9px 11px}
+  .ro .done{text-decoration:line-through;color:var(--muted)}
+
+  /* Toasts */
+  #toasts{position:fixed;right:16px;bottom:16px;display:grid;gap:8px;z-index:50;width:min(390px,calc(100vw - 32px))}
+  .toast{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 14px;display:flex;gap:8px;animation:pop .25s ease}
+  .toast.rem{border:2px solid var(--a)}
+  .toast.nud{border:2px solid var(--b)}
+  .toast .tbody{flex:1;display:grid;gap:6px}
+  .toast .tact{display:flex;gap:6px;flex-wrap:wrap}
+  .toast .tx{border:0;background:none;cursor:pointer;color:var(--muted);font-size:18px;align-self:flex-start}
+  @keyframes pop{from{transform:translateY(10px);opacity:0}}
+  @media (max-width:560px){ h1{width:100%} .three{grid-template-columns:1fr 1fr} .three label:first-child{grid-column:1/-1} }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>📅 Calendar Comun</h1>
+    <div class="seg" id="who"></div>
+    <span class="spacer"></span>
+    <button class="clock" id="clock" title="Setări și oră simulată"></button>
+    <button class="btn" id="settingsBtn" aria-label="Setări">⚙️</button>
+  </div>
+  <div class="quick">
+    <input id="qc" autocomplete="off" placeholder="Scrie rapid: „dentist luni 17” · „sală mâine 19-20:30” · „sună la bancă”">
+    <div id="qcPrev"></div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+<main id="main"></main>
+<div id="toasts"></div>
+<dialog id="dlg"><div id="dlgBody"></div></dialog>
+
+<script>
+/* ---------- Constants & helpers ---------- */
+const OVERLOAD = 5, H_START = 6, H_END = 24, ROW = 48, MIN = 6e4;
+const DAYS = ['Lun','Mar','Mie','Joi','Vin','Sâm','Dum'];
+const DAYS_LONG = ['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
+const MONTHS = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
+const COLOR = { a:'var(--a)', b:'var(--b)' };
+const ENERGY = { full:['🔋','Plin de energie'], tired:['🪫','Obosit'], hard:['😵‍💫','Zi grea'] };
+const STATUS = { seen:['👀','A văzut'], leaving:['🚶','A plecat'], arrived:['✅','A ajuns'], done:['✅','Făcut'], skipped:['➖','Lăsat'] };
+const REMINDER_OPTS = [[1440,'1 zi'],[120,'2 ore'],[60,'1 oră'],[30,'30 min'],[15,'15 min']];
+const MIN_OPTS = [0,5,10,15,20,30,45,60,90];
+const NUDGES = ['Nu uita! 💛','Ai tot ce-ți trebuie? 🎒','E timpul să pleci 🚶','Succes! 🍀'];
+const EMOJI = [[/dentist|stomatolog/,'🦷'],[/doctor|medic|analize|clinic|psiholog|terapie/,'🩺'],[/sala|gym|antrenament|fitness|alergat/,'🏋️'],
+  [/film|cinema/,'🎬'],[/cina|pranz|restaurant|masa/,'🍽️'],[/cafea/,'☕'],[/coafor|frizer|tuns|manichiura/,'💇'],[/yoga|meditatie/,'🧘'],
+  [/banca|factura|plata|plateste/,'💳'],[/ziua|aniversare|petrecere/,'🎂'],[/zbor|aeroport|avion/,'✈️'],[/sedinta|meeting|call|interviu|munca/,'💼'],
+  [/cumparaturi|magazin|mall|piata/,'🛒'],[/parinti|mama|tata|bunica/,'👪'],[/cadou/,'🎁'],[/plimbare|parc/,'🌳'],[/curatenie|spalat/,'🧹'],
+  [/scoala|curs|examen|facultate/,'📚'],[/masina|service|itp/,'🚗'],[/pisica|caine|vet/,'🐾'],[/suna|telefon/,'📞'],[/medicament|pastil/,'💊']];
+const DOW = { luni:1, marti:2, miercuri:3, joi:4, vineri:5, sambata:6, duminica:0 };
+
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,'0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const mondayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay()+6)%7)); };
+const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
+const minToHm = m => `${pad(Math.floor(m/60))}:${pad(m%60)}`;
+const fmtTime = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const uid = () => Math.random().toString(36).slice(2,10);
+const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const other = u => u === 'a' ? 'b' : 'a';
+const nm = u => S.settings.names[u];
+const now = () => new Date(Date.now() + (S.settings.timeOffset || 0));
+const evStart = e => new Date(`${e.date}T${e.start}`);
+const evEnd = e => new Date(`${e.date}T${e.end}`);
+const byStart = (x,y) => evStart(x) - evStart(y);
+const isDone = e => ['arrived','done','skipped'].includes(e.status);
+const guessEmoji = t => (EMOJI.find(([r]) => r.test(norm(t))) || [])[1] || '📌';
+const countDay = (u, date, exceptId) => S.events.filter(e => e.owner === u && e.date === date && e.status !== 'skipped' && e.id !== exceptId).length;
+const visible = () => S.events.filter(e => e.owner === S.me || e.shared);
+const clamp = (v,a=0,b=1) => Math.max(a, Math.min(b, v));
+const dayLabel = d => `${DAYS[(d.getDay()+6)%7]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+function relDay(dateIso){
+  const n = now();
+  if (dateIso === iso(n)) return 'azi';
+  if (dateIso === iso(addDays(n,1))) return 'mâine';
+  if (dateIso === iso(addDays(n,-1))) return 'ieri';
+  return dayLabel(new Date(dateIso + 'T00:00'));
+}
+function fmtDur(ms){
+  let m = Math.max(0, Math.round(ms / MIN));
+  if (m < 1) return 'sub 1 min';
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60); m %= 60;
+  if (h < 24) return `${h}h${m ? ` ${m}min` : ''}`;
+  const d = Math.floor(h / 24);
+  return `${d} ${d === 1 ? 'zi' : 'zile'}${h % 24 ? ` ${h % 24}h` : ''}`;
+}
+
+/* ---------- State ---------- */
+const KEY = 'sc.v2';
+function seed(){
+  const T = new Date();
+  const D = n => iso(addDays(T, n));
+  const W = dow => iso(addDays(T, (dow - T.getDay() + 7) % 7));
+  const mk = o => ({ id:uid(), prep:0, travel:0, reminders:[60], insistent:false, allowNudge:true, status:null, note:'', shared:true,
+                     ...o, checklist:(o.checklist || []).map(text => ({ text, done:false })) });
+  const gym = mk({ owner:'a', emoji:'🏋️', title:'Sală', date:D(0), start:'19:00', end:'20:30', prep:10, travel:15, checklist:['Prosop','Apă','Adidași'] });
+  return {
+    me:'a', view:'now',
+    settings:{ names:{ a:'Victor', b:'Prietena' }, buffers:true, timeOffset:0 },
+    events:[
+      mk({ owner:'a', emoji:'🦷', title:'Dentist', date:W(1), start:'17:00', end:'18:00', note:'Dr. Popescu, cabinet 3', prep:20, travel:20,
+           reminders:[1440,60], insistent:true, checklist:['Buletin','Card de sănătate','Bani / card'] }),
+      gym,
+      mk({ owner:'b', emoji:'☕', title:'Cafea cu Ioana', date:D(0), start:'10:00', end:'11:00' }),
+      mk({ owner:'a', emoji:'💳', title:'Plătește factura la curent', date:D(-1), start:'18:00', end:'18:30', shared:false }),
+      mk({ owner:'a', emoji:'🎁', title:'Cadou surpriză', date:D(1), start:'12:30', end:'13:30', shared:false, note:'Nu partaja!' }),
+      mk({ owner:'b', emoji:'👪', title:'Cină la părinți', date:D(1), start:'19:30', end:'22:00', travel:30 }),
+      mk({ owner:'b', emoji:'💇', title:'Coafor', date:W(6), start:'11:00', end:'12:30', travel:20, checklist:['Poze cu tunsoarea dorită'] }),
+      mk({ owner:'a', emoji:'🎬', title:'Film împreună', date:W(6), start:'20:00', end:'22:30' }),
+      mk({ owner:'b', emoji:'🧘', title:'Yoga', date:W(0), start:'09:00', end:'10:00', shared:false }),
+    ],
+    nudges:[{ id:uid(), from:'b', to:'a', eventId:gym.id, text:'Nu uita de sală! 💪', at:T.toISOString(), read:false, shown:false }],
+    energy:{ a:{}, b:{ [D(0)]:'tired' } },
+    inbox:[
+      { id:uid(), owner:'a', text:'Sună la bancă pentru card', at:T.toISOString() },
+      { id:uid(), owner:'a', text:'Programare ITP mașină', at:T.toISOString() },
+      { id:uid(), owner:'b', text:'Cadou pentru mama', at:T.toISOString() },
+    ],
+    templates:[
+      { name:'Dentist', emoji:'🦷', dur:60, prep:20, travel:20, reminders:[1440,60], insistent:true, checklist:['Buletin','Card de sănătate','Bani / card'] },
+      { name:'Doctor', emoji:'🩺', dur:60, prep:20, travel:20, reminders:[1440,60], insistent:true, checklist:['Buletin','Card de sănătate','Trimitere / analize'] },
+      { name:'Sală', emoji:'🏋️', dur:90, prep:10, travel:15, reminders:[60], insistent:false, checklist:['Prosop','Apă','Adidași'] },
+    ],
+    ritual:{}, fired:{},
+  };
+}
+function load(){ try { const v = localStorage.getItem(KEY); if (v) return JSON.parse(v); } catch {} return seed(); }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S, (k,v) => k.startsWith('_') ? undefined : v)); } catch {} }
+let S = load();
+let weekStart = mondayOf(now());
+
+/* ---------- Quick capture parser ---------- */
+function findTemplate(title){
+  const t = norm(title);
+  return S.templates.find(x => t && t.startsWith(norm(x.name)));
+}
+function parseQuick(text){
+  const toks = text.trim().split(/\s+/).filter(Boolean), keep = [], base = now();
+  let date = null, sh = null, sm = 0, eh = null, em = 0, dur = null, shared = true;
+  for (let i = 0; i < toks.length; i++){
+    const raw = toks[i], t = norm(raw).replace(/[,;!?]+$/,''), prev = norm(toks[i-1] || '');
+    let m;
+    if (t === 'azi' || t === 'astazi') date = iso(base);
+    else if (t === 'maine') date = iso(addDays(base,1));
+    else if (t === 'poimaine') date = iso(addDays(base,2));
+    else if (t in DOW) date = iso(addDays(base, (DOW[t] - base.getDay() + 7) % 7));
+    else if ((m = t.match(/^(\d{1,2})[./](\d{1,2})$/)) && +m[2] >= 1 && +m[2] <= 12){
+      const d = new Date(base.getFullYear(), +m[2]-1, +m[1]);
+      if (d < new Date(base.getFullYear(), base.getMonth(), base.getDate())) d.setFullYear(d.getFullYear()+1);
+      date = iso(d);
+    }
+    else if (sh === null && (m = t.match(/^(\d{1,2})(?:[:.](\d{2}))?(?:-(\d{1,2})(?:[:.](\d{2}))?)?$/)) && +m[1] < 24
+             && (m[2] || m[3] || /^(la|ora|de)$/.test(prev) || +m[1] >= 7)){
+      sh = +m[1]; sm = +(m[2] || 0);
+      if (m[3]){ eh = +m[3]; em = +(m[4] || 0); }
+    }
+    else if ((m = t.match(/^(\d+(?:[.,]\d+)?)(h|ore|ora|min|m)$/))){
+      const v = parseFloat(m[1].replace(',','.')); dur = /^(h|or)/.test(m[2]) ? v*60 : v;
+    }
+    else if (t === 'privat') shared = false;
+    else { keep.push(raw); continue; }
+    if (keep.length && /^(la|ora|pe|de|in|din|pentru)$/.test(norm(keep[keep.length-1]))) keep.pop();
+  }
+  let title = keep.join(' ');
+  title = title.charAt(0).toUpperCase() + title.slice(1);
+  const tpl = findTemplate(title);
+  if (sh !== null && !date){
+    const c = new Date(base); c.setHours(sh, sm, 0, 0);
+    date = iso(c < base ? addDays(c,1) : c);
+  }
+  let start = null, end = null;
+  if (sh !== null){
+    start = minToHm(sh*60 + sm);
+    const len = dur ?? tpl?.dur ?? 60;
+    end = minToHm(eh !== null ? eh*60 + em : Math.min(sh*60 + sm + len, 23*60 + 59));
+  }
+  const p = { title, emoji: tpl?.emoji || guessEmoji(title), date, start, end, shared };
+  if (tpl) Object.assign(p, { prep:tpl.prep, travel:tpl.travel, reminders:[...tpl.reminders], insistent:tpl.insistent,
+                              checklist:tpl.checklist.map(text => ({ text, done:false })) });
+  return { p, tpl, complete: !!(title && date && start), empty: !date && sh === null };
+}
+
+/* ---------- Rendering ---------- */
+function render(){ renderHeader(); renderMain(); }
+
+function renderHeader(){
+  $('#who').innerHTML = ['a','b'].map(k =>
+    `<button data-act="me" data-arg="${k}" class="${S.me === k ? 'on' : ''}"><span class="dot" style="background:${COLOR[k]}"></span>${esc(nm(k))}</button>`).join('');
+  const inboxN = S.inbox.filter(i => i.owner === S.me).length;
+  const nudN = S.nudges.filter(x => x.to === S.me && !x.read).length;
+  const tabs = [['now','⏱ Acum',nudN],['week','🗓 Săptămână'],['agenda','📋 Agendă'],['plan','🤝 Planificare'],['inbox','📥 Inbox',inboxN]];
+  $('#tabs').innerHTML = tabs.map(([k,l,c]) =>
+    `<button data-act="tab" data-arg="${k}" class="${S.view === k ? 'on' : ''}">${l}${c ? ` <span class="count">${c}</span>` : ''}</button>`).join('');
+  const c = $('#clock');
+  c.innerHTML = `🕒 ${fmtTime(now())}${S.settings.timeOffset ? ' · simulat' : ''}`;
+  c.classList.toggle('sim', !!S.settings.timeOffset);
+}
+
+function renderMain(){
+  const main = $('#main');
+  ({ now:renderNow, week:renderWeek, agenda:renderAgenda, plan:renderPlan, inbox:renderInbox })[S.view](main);
+}
+
+function toolbar(){
+  const end = addDays(weekStart, 6);
+  return `<div class="toolbar">
+    <button class="btn" data-act="wk" data-arg="-1" aria-label="Săptămâna trecută">‹</button>
+    <button class="btn" data-act="wk" data-arg="0">Azi</button>
+    <button class="btn" data-act="wk" data-arg="1" aria-label="Săptămâna viitoare">›</button>
+    <span class="range">${weekStart.getDate()} ${MONTHS[weekStart.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]} ${end.getFullYear()}</span>
+    <span class="spacer"></span>
+    <span class="legend">
+      <span><i class="sw" style="background:var(--a)"></i>${esc(nm('a'))}</span>
+      <span><i class="sw" style="background:var(--b)"></i>${esc(nm('b'))}</span>
+      <span><i class="sw hatch"></i>Privat</span>
+      ${S.view === 'week' ? '<span><i class="sw bufsw"></i>Pregătire / pauză</span>' : ''}
+    </span></div>`;
+}
+
+const evMeta = e => `${e.owner !== S.me ? esc(nm(e.owner)) + ' · ' : ''}${e.start}–${e.end}${e.shared ? '' : ' · 🔒'}${e.status ? ' · ' + STATUS[e.status][0] : ''}`;
+const energyIcons = di => ['a','b'].map(u => S.energy[u]?.[di] ? `<span title="${esc(nm(u))}: ${ENERGY[S.energy[u][di]][1]}">${ENERGY[S.energy[u][di]][0]}</span>` : '').join('');
+
+/* ----- Now ----- */
+function renderNow(main){
+  const n = now(), today = iso(n), o = other(S.me);
+  const mineToday = S.events.filter(e => e.owner === S.me && e.date === today && e.status !== 'skipped').sort(byStart);
+  const herToday = S.events.filter(e => e.owner === o && e.shared && e.date === today).sort(byStart);
+  const greet = n.getHours() < 12 ? '☀️ Bună dimineața' : n.getHours() < 18 ? '🌤 Bună ziua' : '🌙 Bună seara';
+  const myE = S.energy[S.me]?.[today], herE = S.energy[o]?.[today];
+  const firstLeft = mineToday.find(e => evEnd(e) > n);
+
+  let h = `<div class="stack">
+  <section class="card">
+    <div class="greet">${greet}, ${esc(nm(S.me))}</div>
+    <div class="sumline">Azi ai <b>${mineToday.length}</b> ${mineToday.length === 1 ? 'lucru' : 'lucruri'}${firstLeft ? ` · următorul: ${firstLeft.emoji} ${esc(firstLeft.title)} la ${firstLeft.start}` : ''}.
+      ${esc(nm(o))} are <b>${herToday.length}</b> partajate.</div>
+    ${mineToday.length >= OVERLOAD ? '<div class="warn">⚠️ Zi plină. Poate muți ceva? E ok să spui nu.</div>' : ''}
+    <div class="energy"><span>Energia mea azi:</span>${Object.entries(ENERGY).map(([k,[em,l]]) =>
+      `<button class="chip ${myE === k ? 'on' : ''}" data-act="energy" data-arg="${k}">${em} ${l}</button>`).join('')}</div>
+    ${herE ? `<div class="her-energy">${ENERGY[herE][0]} <b>${esc(nm(o))}</b>: ${ENERGY[herE][1].toLowerCase()}${herE !== 'full' ? ' · poate o seară liniștită împreună? 💛' : ''}</div>` : ''}
+  </section>`;
+
+  const nud = S.nudges.filter(x => x.to === S.me && !x.read);
+  if (nud.length) h += `<section class="card"><h2>💌 De la ${esc(nm(o))}</h2>${nud.map(x => {
+      const e = S.events.find(e => e.id === x.eventId);
+      return `<div class="nudge"><div><b>${esc(x.text)}</b><div class="meta">${e ? `despre ${e.emoji} ${esc(e.title)}` : ''}</div></div>
+              <button class="chip" data-act="nudgeRead" data-arg="${x.id}">👍 Mulțumesc</button></div>`;
+    }).join('')}</section>`;
+
+  const upcoming = S.events.filter(e => e.owner === S.me && evEnd(e) > n && !['skipped','done'].includes(e.status)).sort(byStart);
+  if (upcoming[0]){
+    h += nextCard(upcoming[0], n);
+    if (upcoming[1]) h += `<div class="after">Apoi: ${upcoming[1].emoji} ${esc(upcoming[1].title)} · ${relDay(upcoming[1].date)} la ${upcoming[1].start}</div>`;
+  } else h += `<section class="card"><div class="big">🌿 Nimic programat. Respiră.</div></section>`;
+
+  const todayAll = visible().filter(e => e.date === today && e.status !== 'skipped').sort(byStart);
+  const item = e => `<div class="item ${evEnd(e) <= n ? 'past' : ''}" data-act="open" data-id="${e.id}">
+      <span class="em">${e.emoji || '📌'}</span><span class="bar" style="background:${COLOR[e.owner]}"></span>
+      <div class="grow"><div>${esc(e.title)}${e.shared ? '' : ' 🔒'}</div>
+      <div class="meta">${e.start}–${e.end}${e.owner !== S.me ? ' · ' + esc(nm(e.owner)) : ''}${e.status ? ' · ' + STATUS[e.status].join(' ') : ''}</div></div></div>`;
+  h += `<section class="card today-list"><h2>📍 Azi, pe scurt</h2>
+    ${todayAll.length ? todayAll.slice(0,5).map(item).join('') : '<div class="meta">Zi liberă. 🌿</div>'}
+    ${todayAll.length > 5 ? `<details><summary>+${todayAll.length - 5} mai târziu</summary>${todayAll.slice(5).map(item).join('')}</details>` : ''}
+  </section>`;
+
+  const review = S.events.filter(e => e.owner === S.me && !isDone(e) && evEnd(e) <= n && n - evEnd(e) < 3*864e5).sort(byStart);
+  if (review.length) h += `<section class="card"><h2>🌱 Cum a mers?</h2><div class="meta" style="margin-bottom:6px">Fără presiune. Alege ce se potrivește.</div>
+    ${review.map(e => `<div class="rev"><span>${e.emoji} <b>${esc(e.title)}</b> <span class="meta">${relDay(e.date)}, ${e.start}</span></span>
+      <span class="btns"><button class="chip" data-act="done" data-id="${e.id}">✓ Făcut</button>
+      <button class="chip" data-act="redo" data-id="${e.id}">↻ Reprogramează</button>
+      <button class="chip" data-act="skip" data-id="${e.id}">Lasă</button></span></div>`).join('')}</section>`;
+
+  main.innerHTML = h + '</div>';
+}
+
+function nextCard(e, n){
+  const st = evStart(e), en = evEnd(e), inProg = st <= n;
+  const prepAt = new Date(st - ((e.prep || 0) + (e.travel || 0)) * MIN), leaveAt = new Date(st - (e.travel || 0) * MIN);
+  const steps = [];
+  if (e.prep) steps.push(['🧴','Pregătire',prepAt]);
+  if (e.travel) steps.push(['🚶','Plecare',leaveAt]);
+  steps.push([e.emoji || '📌','Început',st], ['🏁','Final',en]);
+  const cur = steps.findIndex(s => s[2] > n) - 1;
+
+  let big, sub, frac, low = false;
+  if (inProg){ big = 'acum'; sub = `Mai sunt ${fmtDur(en - n)} până la final`; frac = (en - n) / (en - st); }
+  else {
+    big = `în ${fmtDur(st - n)}`;
+    if (e.travel && leaveAt <= n){ sub = '🚶 E timpul să pleci!'; low = true; }
+    else if (e.prep && prepAt <= n){ sub = `🧴 Pregătește-te. ${e.travel ? `Pleci în ${fmtDur(leaveAt - n)} (la ${fmtTime(leaveAt)})` : `Începe la ${e.start}`}`; low = true; }
+    else if (e.prep || e.travel) sub = `${e.prep ? '🧴 Pregătirea' : '🚶 Plecarea'} începe în ${fmtDur(prepAt - n)}, la <b>${fmtTime(prepAt)}</b>`;
+    else sub = `${relDay(e.date)}, la ${e.start}`;
+    const target = (e.prep || e.travel) ? prepAt : st;
+    frac = clamp((target - n) / (3 * 3600e3));
+    low = low || frac < .15;
+  }
+  const o = other(S.me);
+  return `<section class="card next">
+    <div class="meta">Următorul</div>
+    <div class="title">${e.emoji || '📌'} ${esc(e.title)}${e.shared ? '' : ' <span class="tag">🔒 privat</span>'}</div>
+    <div class="countdown">${big}</div>
+    <div class="sub">${sub}</div>
+    <div class="meter ${low ? 'low' : ''}"><i style="width:${Math.round(frac * 100)}%"></i></div>
+    <div class="steps">${steps.map(([ic,l,at],i) =>
+      `<span class="step ${at <= n && i !== cur ? 'past' : ''} ${i === cur ? 'cur' : ''}">${ic} ${l} ${fmtTime(at)}</span>`).join('')}</div>
+    ${e.checklist.length ? `<div class="checklist">${e.checklist.map((c,i) =>
+      `<label><input type="checkbox" data-act="check" data-id="${e.id}" data-arg="${i}" ${c.done ? 'checked' : ''}><span class="${c.done ? 'done' : ''}">${esc(c.text)}</span></label>`).join('')}</div>` : ''}
+    ${e.note ? `<div class="meta" style="margin-bottom:10px">📝 ${esc(e.note)}</div>` : ''}
+    <div class="status-btns">
+      ${[['seen','👀 Am văzut'],['leaving','🚶 Plec acum'],['arrived','✅ Am ajuns']].map(([k,l]) =>
+        `<button class="chip ${e.status === k ? 'on' : ''}" data-act="status" data-id="${e.id}" data-arg="${k}">${l}</button>`).join('')}
+      <button class="chip" data-act="open" data-id="${e.id}">✏️ Detalii</button>
+    </div>
+    ${e.shared ? `<div class="meta" style="margin-top:8px">${esc(nm(o))} vede statusul tău${e.allowNudge ? ' și îți poate trimite mementouri' : ''}.</div>` : ''}
+  </section>`;
+}
+
+/* ----- Week ----- */
+function layoutDay(list){
+  list.sort(byStart);
+  const lanes = [];
+  for (const e of list){
+    let i = lanes.findIndex(end => end <= toMin(e.start));
+    if (i < 0){ i = lanes.length; lanes.push(0); }
+    lanes[i] = toMin(e.end); e._lane = i;
+  }
+  for (const e of list) e._lanes = lanes.length;
+  return list;
+}
+
+function renderWeek(main){
+  const n = now(), todayIso = iso(n), days = [...Array(7)].map((_,i) => addDays(weekStart,i));
+  let head = '<div></div>';
+  days.forEach((d,i) => {
+    const di = iso(d), ov = countDay(S.me, di) >= OVERLOAD;
+    head += `<div class="${di === todayIso ? 'is-today' : ''}">${DAYS[i]}<b>${d.getDate()}</b><span class="hmeta">${energyIcons(di)}${ov ? '<span title="Zi plină">⚠️</span>' : ''}</span></div>`;
+  });
+  let hours = '';
+  for (let h = H_START; h < H_END; h++) hours += `<div>${h === H_START ? '' : pad(h) + ':00'}</div>`;
+  main.innerHTML = toolbar() + `<div class="grid" style="--h:${ROW}px">
+    <div class="head">${head}</div>
+    <div class="body"><div class="hours">${hours}</div>${days.map(d =>
+      `<div class="col ${iso(d) === todayIso ? 'today' : ''}" data-date="${iso(d)}" style="height:${(H_END-H_START)*ROW}px"></div>`).join('')}</div></div>`;
+
+  const y = m => (m - H_START*60) / 60 * ROW, vis = visible();
+  main.querySelectorAll('.col').forEach(col => {
+    const di = col.dataset.date;
+    const list = layoutDay(vis.filter(e => e.date === di && e.status !== 'skipped'));
+    let html = '';
+    for (const e of list) if (e.owner === S.me && !isDone(e)){
+      const s = toMin(e.start), en = toMin(e.end);
+      const before = ((e.prep || 0) + (e.travel || 0)) || (S.settings.buffers ? 15 : 0), after = S.settings.buffers ? 15 : 0;
+      if (before) html += `<div class="buf" style="top:${y(s - before)}px;height:${before/60*ROW}px"></div>`;
+      if (after) html += `<div class="buf" style="top:${y(en)}px;height:${after/60*ROW}px"></div>`;
+    }
+    for (const e of list){
+      const top = y(toMin(e.start)), h = Math.max(22, (toMin(e.end) - toMin(e.start)) / 60 * ROW - 2), w = 100 / e._lanes;
+      const unread = S.nudges.some(x => x.eventId === e.id && x.to === S.me && !x.read);
+      html += `<div class="ev ${e.owner}${e.shared ? '' : ' private'}${isDone(e) ? ' done' : ''}" data-act="open" data-id="${e.id}"
+        style="top:${top}px;height:${h}px;left:calc(${w*e._lane}% + 2px);width:calc(${w}% - 4px)">
+        <div class="t">${e.emoji || ''} ${esc(e.title)}${unread ? ' 💌' : ''}</div><div class="m">${evMeta(e)}</div></div>`;
+    }
+    if (di === todayIso){
+      const m = n.getHours()*60 + n.getMinutes();
+      if (m >= H_START*60) html += `<div class="nowline" style="top:${y(m)}px"></div>`;
+    }
+    col.innerHTML = html;
+  });
+  const isThisWeek = days.some(d => iso(d) === todayIso);
+  main.querySelector('.grid').scrollTop = ((isThisWeek ? Math.max(H_START, n.getHours() - 2) : 8) - H_START) * ROW;
+}
+
+/* ----- Agenda ----- */
+function renderAgenda(main){
+  const todayIso = iso(now()), vis = visible();
+  let h = toolbar() + '<div class="stack">';
+  for (let i = 0; i < 7; i++){
+    const d = addDays(weekStart,i), di = iso(d);
+    const list = vis.filter(e => e.date === di).sort(byStart);
+    const ov = countDay(S.me, di) >= OVERLOAD;
+    h += `<div class="day ${di === todayIso ? 'today' : ''}"><h3><span>${DAYS_LONG[i]}, ${d.getDate()} ${MONTHS[d.getMonth()]}</span>
+          <span>${energyIcons(di)} ${ov ? '⚠️ zi plină' : ''}</span></h3>`;
+    h += list.length ? list.map(e => {
+      const cl = e.checklist.length ? ` · ☑ ${e.checklist.filter(c => c.done).length}/${e.checklist.length}` : '';
+      const lv = e.travel ? ` · pleacă la ${minToHm(Math.max(0, toMin(e.start) - e.travel))}` : '';
+      return `<div class="row ${isDone(e) ? 'dim' : ''}" data-act="open" data-id="${e.id}">
+        <span class="bar" style="background:${COLOR[e.owner]}"></span><span class="time">${e.start} – ${e.end}</span>
+        <span class="grow"><b>${e.emoji || ''} ${esc(e.title)}</b>${e.shared ? '' : '<span class="tag">🔒 privat</span>'}${e.status ? `<span class="tag">${STATUS[e.status].join(' ')}</span>` : ''}
+        <div class="meta">${e.owner === S.me ? 'Al meu' : esc(nm(e.owner))}${lv}${cl}${e.note ? ' · ' + esc(e.note) : ''}</div></span></div>`;
+    }).join('') : '<div class="empty">Nimic planificat</div>';
+    h += '</div>';
+  }
+  main.innerHTML = h + '</div>';
+}
+
+/* ----- Weekly planning ----- */
+const RITUAL = ['Luați fiecare zi pe rând','Căutați serile libere comune','Puneți pregătire și drum la ce e important',
+                'Alegeți ce rămâne privat','Spuneți-vă un lucru de care vă bucurați săptămâna asta 💛'];
+function renderPlan(main){
+  const o = other(S.me), todayIso = iso(now()), wk = iso(weekStart), ritual = S.ritual[wk] || [];
+  const free = [], busy = [], overlapsAll = [];
+  let rows = '';
+  for (let i = 0; i < 7; i++){
+    const d = addDays(weekStart,i), di = iso(d);
+    const mine = S.events.filter(e => e.owner === S.me && e.date === di && e.status !== 'skipped').sort(byStart);
+    const hers = S.events.filter(e => e.owner === o && e.shared && e.date === di && e.status !== 'skipped').sort(byStart);
+    const eveningBusy = [...mine, ...hers].some(e => toMin(e.end) > 18*60 && toMin(e.start) < 23*60);
+    const overlaps = [];
+    for (const x of mine) for (const z of hers)
+      if (toMin(x.start) < toMin(z.end) && toMin(z.start) < toMin(x.end)) overlaps.push([x,z]);
+    const notes = [];
+    if (mine.length >= OVERLOAD) notes.push(`<div class="warn">⚠️ ${esc(nm(S.me))}: zi plină (${mine.length})</div>`);
+    if (hers.length >= OVERLOAD) notes.push(`<div class="warn">⚠️ ${esc(nm(o))}: zi plină (${hers.length})</div>`);
+    overlaps.forEach(([x,z]) => notes.push(`<div class="meta">⏰ Amândoi ocupați: ${esc(x.title)} / ${esc(z.title)}</div>`));
+    if (!eveningBusy){
+      notes.push(`<div class="okmsg">💛 Seară liberă comună</div><button class="chip" data-act="planEve" data-arg="${di}">+ Planifică ceva împreună</button>`);
+      if (di >= todayIso) free.push(DAYS[i]);
+    }
+    if (mine.length >= OVERLOAD || hers.length >= OVERLOAD) busy.push(DAYS[i]);
+    overlapsAll.push(...overlaps);
+    const it = e => `<div class="pitem ${e.owner}" data-act="open" data-id="${e.id}">${e.emoji || ''} ${e.start} ${esc(e.title)}${e.shared ? '' : ' 🔒'}</div>`;
+    rows += `<div class="prow ${di === todayIso ? 'today' : ''}"><div>${DAYS_LONG[i]} ${d.getDate()}<span class="meta">${energyIcons(di)}</span></div>
+      <div>${mine.map(it).join('') || '<span class="meta">liber</span>'}</div>
+      <div>${hers.map(it).join('') || '<span class="meta">liber</span>'}</div>
+      <div>${notes.join('')}</div></div>`;
+  }
+  main.innerHTML = toolbar() + `<div class="wide">
+    <div class="two" style="gap:12px">
+      <section class="card ritual"><h2>🤝 Planificarea săptămânii, 10 minute împreună</h2>
+        ${RITUAL.map((t,i) => `<label><input type="checkbox" data-act="ritual" data-arg="${i}" ${ritual[i] ? 'checked' : ''}><span class="${ritual[i] ? 'done' : ''}">${t}</span></label>`).join('')}
+      </section>
+      <section class="card"><h2>📊 Pe scurt</h2>
+        <div style="display:grid;gap:8px">
+          ${free.length ? `<div class="okmsg">💛 Seri libere comune: <b>${free.join(', ')}</b></div>` : '<div class="meta">Nicio seară liberă comună. Poate eliberați una?</div>'}
+          ${busy.length ? `<div class="warn">⚠️ Zile pline: <b>${busy.join(', ')}</b>. Mutați ceva?</div>` : '<div class="meta">✓ Nicio zi supraîncărcată.</div>'}
+          <div class="meta">⏰ Suprapuneri între voi: ${overlapsAll.length}</div>
+        </div>
+      </section>
+    </div>
+    <div class="ptable">
+      <div class="prow ph"><div>Zi</div><div><span class="dot" style="background:var(--a)"></span> ${esc(nm(S.me))}</div><div><span class="dot" style="background:var(--b)"></span> ${esc(nm(o))} (partajate)</div><div>Observații</div></div>
+      ${rows}
+    </div></div>`;
+}
+
+/* ----- Inbox ----- */
+function renderInbox(main){
+  const items = S.inbox.filter(i => i.owner === S.me);
+  main.innerHTML = `<div class="stack">
+    <section class="card"><h2>📥 Inbox</h2>
+      <div class="meta" style="margin-bottom:10px">Lucruri fără dată, ca să nu se piardă. Le programezi când ai energie.</div>
+      <form id="inboxForm" class="titlerow"><input id="inboxTxt" class="grow" style="border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--bg)" placeholder="ex. Sună la bancă"><button class="btn primary">Adaugă</button></form>
+    </section>
+    <section class="card">${items.length ? items.map(i => `<div class="rev"><span>${guessEmoji(i.text)} ${esc(i.text)}<div class="meta">adăugat ${relDay(iso(new Date(i.at)))}</div></span>
+      <span class="btns"><button class="chip" data-act="inSched" data-arg="${i.id}">📅 Programează</button>
+      <button class="chip" data-act="inDone" data-arg="${i.id}">✓ Gata</button>
+      <button class="chip" data-act="inDel" data-arg="${i.id}" aria-label="Șterge">×</button></span></div>`).join('') : '<div class="big">✨ Inbox gol</div>'}</section>
+  </div>`;
+  $('#inboxForm').onsubmit = ev => {
+    ev.preventDefault();
+    const t = $('#inboxTxt').value.trim();
+    if (!t) return;
+    S.inbox.unshift({ id:uid(), owner:S.me, text:t, at:now().toISOString() });
+    save(); render(); $('#inboxTxt').focus();
+  };
+}
+
+/* ---------- Event dialog ---------- */
+const dlg = $('#dlg'), body = $('#dlgBody');
+let draft = null, draftIsNew = false, draftFromInbox = null;
+const minOpts = v => [...new Set([...MIN_OPTS, +v || 0])].sort((a,b) => a-b)
+  .map(m => `<option value="${m}" ${m === (+v || 0) ? 'selected' : ''}>${m ? m + ' min' : '—'}</option>`).join('');
+
+function openEvent(e, preset = {}){
+  if (e && e.owner !== S.me) return openReadOnly(e);
+  const mode = preset._mode;
+  draftIsNew = !e; draftFromInbox = preset._fromInbox || null;
+  const clean = Object.fromEntries(Object.entries(preset).filter(([k,v]) => v != null && !k.startsWith('_')));
+  draft = { id:uid(), owner:S.me, emoji:'', title:'', date:iso(now()), start:'18:00', end:'19:00', shared:true, note:'', prep:0, travel:0,
+            reminders:[60], insistent:false, allowNudge:true, checklist:[], status:null, ...(e ? structuredClone(e) : {}), ...clean };
+  const o = other(S.me);
+  body.innerHTML = `<form class="f" id="frm">
+    <h2>${mode === 'redo' ? '↻ Reprogramează' : draftIsNew ? 'Eveniment nou' : 'Editează eveniment'}</h2>
+    ${draftIsNew && S.templates.length ? `<label>Din șablon<select id="tpl"><option value="">— niciunul —</option>${S.templates.map((t,i) => `<option value="${i}">${t.emoji} ${esc(t.name)}</option>`).join('')}</select></label>` : ''}
+    <div class="titlerow"><input name="emoji" class="emo" maxlength="8" value="${esc(draft.emoji)}" placeholder="📌" aria-label="Emoji">
+      <input name="title" required placeholder="ex. Dentist" value="${esc(draft.title)}" aria-label="Titlu"></div>
+    <div class="three">
+      <label>Data<input type="date" name="date" required value="${draft.date}"></label>
+      <label>Început<input type="time" name="start" required value="${draft.start}"></label>
+      <label>Sfârșit<input type="time" name="end" required value="${draft.end}"></label>
+    </div>
+    <div class="two">
+      <label>🧴 Timp de pregătire<select name="prep">${minOpts(draft.prep)}</select></label>
+      <label>🚶 Timp de drum<select name="travel">${minOpts(draft.travel)}</select></label>
+    </div>
+    <div class="hint" id="leaveHint"></div>
+    <div class="fs"><div class="lbl">🔔 Mementouri înainte (plus automat la pregătire, plecare și început)</div>
+      <div class="chips">${REMINDER_OPTS.map(([m,l]) => `<label class="chip ${draft.reminders.includes(m) ? 'on' : ''}"><input type="checkbox" name="rem" value="${m}" ${draft.reminders.includes(m) ? 'checked' : ''} hidden>${l}</label>`).join('')}</div></div>
+    <label class="switch"><span>🔁 Memento insistent<small>Revine până apeși „Am văzut” sau „Plec acum”.</small></span><input type="checkbox" name="insistent" ${draft.insistent ? 'checked' : ''}></label>
+    <label class="switch"><span>👥 Partajat cu ${esc(nm(o))}<small>Dacă e oprit, doar tu îl vezi.</small></span><input type="checkbox" name="shared" ${draft.shared ? 'checked' : ''}></label>
+    <label class="switch" id="nudgeRow"><span>💌 ${esc(nm(o))} îmi poate trimite mementouri<small>Tu alegi, pentru fiecare eveniment.</small></span><input type="checkbox" name="allowNudge" ${draft.allowNudge ? 'checked' : ''}></label>
+    <div class="fs"><div class="lbl">✅ Listă de verificare</div><div id="cl" class="fs"></div>
+      <input id="clNew" placeholder="Adaugă un lucru și apasă Enter"></div>
+    <label>📝 Notă<textarea name="note" rows="2" placeholder="opțional">${esc(draft.note)}</textarea></label>
+    <div id="warn" class="fs"></div>
+    <div class="actions">
+      ${!draftIsNew ? '<button type="button" class="btn del" id="delBtn">Șterge</button>' : ''}
+      <button type="button" class="btn" id="tplBtn" title="Salvează ca șablon">⭐ Șablon</button>
+      <button type="button" class="btn" id="cancel">Închide</button>
+      <button class="btn primary">Salvează</button>
+    </div></form>`;
+
+  const frm = $('#frm'), F = k => frm.elements[k];
+  let autoEmoji = !draft.emoji;
+  const renderCl = () => {
+    $('#cl').innerHTML = draft.checklist.map((c,i) => `<div class="clrow"><input type="checkbox" data-ci="${i}" ${c.done ? 'checked' : ''}><span>${esc(c.text)}</span><button type="button" data-rm="${i}" aria-label="Elimină">×</button></div>`).join('') || '<div class="meta">Nimic încă.</div>';
+  };
+  const read = () => {
+    draft.title = F('title').value.trim();
+    draft.emoji = F('emoji').value.trim() || guessEmoji(draft.title);
+    draft.date = F('date').value; draft.start = F('start').value; draft.end = F('end').value;
+    draft.prep = +F('prep').value; draft.travel = +F('travel').value;
+    draft.reminders = [...frm.querySelectorAll('[name=rem]:checked')].map(x => +x.value);
+    draft.insistent = F('insistent').checked; draft.shared = F('shared').checked; draft.allowNudge = F('allowNudge').checked;
+    draft.note = F('note').value.trim();
+  };
+  const update = () => {
+    read();
+    $('#nudgeRow').hidden = !draft.shared;
+    const st = draft.start && toMin(draft.start);
+    $('#leaveHint').textContent = (draft.prep || draft.travel) && draft.start
+      ? `→ ${draft.prep ? `începi pregătirea la ${minToHm(Math.max(0, st - draft.prep - draft.travel))}` : ''}${draft.prep && draft.travel ? ' · ' : ''}${draft.travel ? `pleci la ${minToHm(Math.max(0, st - draft.travel))}` : ''}` : '';
+    const w = [];
+    if (draft.start && draft.end && toMin(draft.end) <= toMin(draft.start)) w.push('Sfârșitul trebuie să fie după început.');
+    const cnt = countDay(S.me, draft.date, draft.id);
+    if (cnt >= OVERLOAD - 1) w.push(`⚠️ Ai deja ${cnt} lucruri în ziua asta. E ok să spui nu.`);
+    if (draft.start && draft.end) for (const x of S.events.filter(x => x.owner === S.me && x.date === draft.date && x.id !== draft.id && x.status !== 'skipped')){
+      const gap = Math.max(toMin(x.start) - toMin(draft.end), toMin(draft.start) - toMin(x.end));
+      if (gap < 0) w.push(`⏰ Se suprapune cu ${x.emoji} ${esc(x.title)} (${x.start}–${x.end}).`);
+      else if (gap < 15) w.push(`⏳ Doar ${gap} min între asta și ${x.emoji} ${esc(x.title)}. Ai nevoie de timp de tranziție?`);
+    }
+    $('#warn').innerHTML = w.map(t => `<div class="warn">${t}</div>`).join('');
+  };
+  renderCl(); update();
+
+  frm.addEventListener('input', ev => {
+    if (ev.target.name === 'emoji') autoEmoji = !ev.target.value.trim();
+    if (ev.target.name === 'title' && autoEmoji) F('emoji').value = guessEmoji(ev.target.value);
+    if (ev.target.name === 'rem') ev.target.parentElement.classList.toggle('on', ev.target.checked);
+    update();
+  });
+  $('#tpl')?.addEventListener('change', ev => {
+    const t = S.templates[ev.target.value]; if (!t) return;
+    F('title').value = t.name; F('emoji').value = t.emoji; autoEmoji = false;
+    F('end').value = minToHm(Math.min(toMin(F('start').value) + t.dur, 23*60 + 59));
+    F('prep').innerHTML = minOpts(t.prep); F('travel').innerHTML = minOpts(t.travel);
+    frm.querySelectorAll('[name=rem]').forEach(x => { x.checked = t.reminders.includes(+x.value); x.parentElement.classList.toggle('on', x.checked); });
+    F('insistent').checked = t.insistent;
+    draft.checklist = t.checklist.map(text => ({ text, done:false })); renderCl(); update();
+  });
+  $('#cl').onclick = ev => {
+    const rm = ev.target.dataset.rm, ci = ev.target.dataset.ci;
+    if (rm != null){ draft.checklist.splice(+rm, 1); renderCl(); }
+    if (ci != null) draft.checklist[+ci].done = ev.target.checked;
+  };
+  $('#clNew').onkeydown = ev => {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    const t = ev.target.value.trim(); if (!t) return;
+    draft.checklist.push({ text:t, done:false }); ev.target.value = ''; renderCl();
+  };
+  $('#cancel').onclick = () => dlg.close();
+  $('#delBtn')?.addEventListener('click', () => {
+    if (!confirm('Ștergi evenimentul?')) return;
+    S.events = S.events.filter(x => x.id !== draft.id);
+    S.nudges = S.nudges.filter(x => x.eventId !== draft.id);
+    save(); dlg.close(); render();
+  });
+  $('#tplBtn').onclick = () => {
+    read();
+    if (!draft.title){ F('title').focus(); return; }
+    const t = { name:draft.title, emoji:draft.emoji, dur:Math.max(15, toMin(draft.end) - toMin(draft.start)), prep:draft.prep, travel:draft.travel,
+                reminders:draft.reminders, insistent:draft.insistent, checklist:draft.checklist.map(c => c.text) };
+    const i = S.templates.findIndex(x => norm(x.name) === norm(t.name));
+    i >= 0 ? S.templates[i] = t : S.templates.push(t);
+    save(); toast({ html:`⭐ Șablon salvat: ${t.emoji} ${esc(t.name)}` });
+  };
+  frm.onsubmit = ev => {
+    ev.preventDefault();
+    read();
+    if (toMin(draft.end) <= toMin(draft.start)){ update(); return; }
+    if (draftIsNew && countDay(S.me, draft.date) >= OVERLOAD && !confirm(`Ai deja ${countDay(S.me, draft.date)} lucruri în ziua asta. Adaugi totuși?`)) return;
+    if (mode === 'redo'){ draft.status = null; draft.checklist.forEach(c => c.done = false); }
+    const i = S.events.findIndex(x => x.id === draft.id);
+    i >= 0 ? S.events[i] = draft : S.events.push(draft);
+    for (const k of Object.keys(S.fired)) if (k.startsWith(draft.id + ':')) delete S.fired[k];
+    if (draftFromInbox) S.inbox = S.inbox.filter(x => x.id !== draftFromInbox);
+    save(); dlg.close(); render(); tick();
+    toast({ html:`✅ Salvat: ${draft.emoji} ${esc(draft.title)} · ${relDay(draft.date)}, ${draft.start}` });
+  };
+  dlg.showModal();
+}
+
+function openReadOnly(e){
+  const o = e.owner, st = evStart(e);
+  const leaveAt = e.travel ? fmtTime(new Date(st - e.travel * MIN)) : null;
+  const sent = S.nudges.filter(x => x.eventId === e.id && x.from === S.me);
+  body.innerHTML = `<div class="f">
+    <h2>${e.emoji || ''} ${esc(e.title)}</h2>
+    <div class="ro">Partajat de <b>${esc(nm(o))}</b> · ${relDay(e.date)}, ${e.start}–${e.end}${leaveAt ? ` · pleacă la ${leaveAt}` : ''}
+      ${e.status ? `<div style="margin-top:4px">${STATUS[e.status][0]} <b>${STATUS[e.status][1]}</b></div>` : ''}
+      ${e.note ? `<div style="margin-top:4px">📝 ${esc(e.note)}</div>` : ''}
+      ${e.checklist.length ? `<div style="margin-top:6px">${e.checklist.map(c => `<div class="${c.done ? 'done' : ''}">${c.done ? '☑' : '☐'} ${esc(c.text)}</div>`).join('')}</div>` : ''}
+    </div>
+    <div class="meta">Doar ${esc(nm(o))} poate modifica acest eveniment.</div>
+    ${e.allowNudge ? `<div class="fs"><div class="lbl">💌 Trimite un memento</div>
+      <div class="chips">${NUDGES.map(t => `<button type="button" class="chip" data-nudge="${esc(t)}">${t}</button>`).join('')}</div>
+      <div class="titlerow"><input id="nudgeTxt" class="grow" placeholder="Sau scrie tu…"><button type="button" class="btn" id="nudgeSend">Trimite</button></div>
+      ${sent.length ? `<div class="meta">Trimise: ${sent.map(x => esc(x.text) + (x.read ? ' 👍' : '')).join(' · ')}</div>` : ''}</div>`
+      : `<div class="meta">💌 ${esc(nm(o))} nu a activat mementourile de la tine pentru acest eveniment.</div>`}
+    <div class="actions"><button type="button" class="btn" id="cancel">Închide</button></div></div>`;
+  const send = text => {
+    if (!text) return;
+    S.nudges.push({ id:uid(), from:S.me, to:o, eventId:e.id, text, at:now().toISOString(), read:false, shown:false });
+    save(); toast({ html:`💌 Trimis către ${esc(nm(o))}: ${esc(text)}` }); openReadOnly(e);
+  };
+  body.querySelectorAll('[data-nudge]').forEach(b => b.onclick = () => send(b.dataset.nudge));
+  $('#nudgeSend')?.addEventListener('click', () => send($('#nudgeTxt').value.trim()));
+  $('#cancel').onclick = () => dlg.close();
+  if (!dlg.open) dlg.showModal();
+}
+
+/* ---------- Settings ---------- */
+function openSettings(){
+  const simVal = () => { const n = now(); return `${iso(n)}T${fmtTime(n)}`; };
+  body.innerHTML = `<form class="f" id="sf"><h2>⚙️ Setări</h2>
+    <div class="two">
+      <label><span><span class="dot" style="background:var(--a)"></span> Persoana 1</span><input name="na" value="${esc(nm('a'))}"></label>
+      <label><span><span class="dot" style="background:var(--b)"></span> Persoana 2</span><input name="nb" value="${esc(nm('b'))}"></label>
+    </div>
+    <label class="switch"><span>⏳ Pauze automate de 15 min<small>Spațiu de tranziție înainte și după evenimentele tale.</small></span><input type="checkbox" name="buffers" ${S.settings.buffers ? 'checked' : ''}></label>
+    <div class="fs"><div class="lbl">⏱ Ora simulată (doar pentru demo)</div>
+      <div class="meta">Mută ceasul ca să vezi mementourile, „Când plec” și numărătoarea inversă.</div>
+      <input type="datetime-local" name="sim" value="${simVal()}">
+      <div class="chips"><button type="button" class="chip" data-sim="15">+15 min</button><button type="button" class="chip" data-sim="60">+1 oră</button>
+        <button type="button" class="chip" data-sim="1440">+1 zi</button><button type="button" class="chip" data-sim="0">↺ Ora reală</button></div>
+    </div>
+    <div class="actions"><button type="button" class="btn del" id="resetBtn">Resetează datele demo</button>
+      <button type="button" class="btn" id="cancel">Închide</button><button class="btn primary">Salvează</button></div></form>`;
+  const sf = $('#sf');
+  const applySim = () => { save(); sf.elements.sim.value = simVal(); render(); tick(); };
+  sf.querySelectorAll('[data-sim]').forEach(b => b.onclick = () => {
+    const m = +b.dataset.sim;
+    S.settings.timeOffset = m ? (S.settings.timeOffset || 0) + m * MIN : 0;
+    applySim();
+  });
+  sf.elements.sim.onchange = ev => { const t = new Date(ev.target.value); if (!isNaN(t)){ S.settings.timeOffset = t - Date.now(); applySim(); } };
+  $('#resetBtn').onclick = () => {
+    if (!confirm('Ștergi toate datele și revii la exemplu?')) return;
+    S = seed(); weekStart = mondayOf(now()); $('#toasts').innerHTML = ''; save(); dlg.close(); render(); tick();
+  };
+  $('#cancel').onclick = () => dlg.close();
+  sf.onsubmit = ev => {
+    ev.preventDefault();
+    S.settings.names.a = sf.elements.na.value.trim() || 'Persoana 1';
+    S.settings.names.b = sf.elements.nb.value.trim() || 'Persoana 2';
+    S.settings.buffers = sf.elements.buffers.checked;
+    save(); dlg.close(); render();
+  };
+  dlg.showModal();
+}
+
+/* ---------- Toasts & reminders ---------- */
+function toast({ id, html, sub, actions = [], sticky = false, kind = '', onClose }){
+  const box = $('#toasts');
+  if (id && box.querySelector(`[data-tid="${id}"]`)) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + kind;
+  if (id) el.dataset.tid = id;
+  el.innerHTML = `<div class="tbody"><div>${html}</div>${sub ? `<div class="meta">${sub}</div>` : ''}${actions.length ? '<div class="tact"></div>' : ''}</div><button class="tx" aria-label="Închide">×</button>`;
+  actions.forEach(([label, fn]) => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.textContent = label;
+    b.onclick = () => { el.remove(); fn(); save(); render(); };
+    el.querySelector('.tact').appendChild(b);
+  });
+  el.querySelector('.tx').onclick = () => { el.remove(); onClose?.(); save(); };
+  box.appendChild(el);
+  if (!sticky) setTimeout(() => el.remove(), 5000);
+}
+
+function triggers(e){
+  const st = evStart(e).getTime(), T = [];
+  for (const m of e.reminders || []) T.push(['r' + m, st - m*MIN, m >= 1440 ? `Mâine la ${e.start}` : `Peste ${fmtDur(m*MIN)}`]);
+  if (e.prep) T.push(['prep', st - (e.prep + (e.travel || 0)) * MIN, '🧴 Începe să te pregătești']);
+  if (e.travel) T.push(['leave', st - e.travel * MIN, '🚶 E timpul să pleci']);
+  T.push(['start', st, '⏰ Începe acum']);
+  return T;
+}
+function ack(e){
+  for (const k of Object.keys(S.fired)) if (k.startsWith(e.id + ':')) S.fired[k].ack = true;
+  document.querySelectorAll('#toasts [data-tid]').forEach(t => { if (t.dataset.tid.startsWith(e.id + ':')) t.remove(); });
+}
+function showReminder(e, k, text, fid, again){
+  toast({ id:fid, sticky:true, kind:'rem',
+    html:`<b>${e.emoji} ${esc(e.title)}</b> · ${text}`,
+    sub:`${relDay(e.date)}, ${e.start}–${e.end}${again ? ' · 🔁 îți reamintesc' : ''}`,
+    actions:[
+      ['👀 Am văzut', () => { ack(e); if (!e.status) e.status = 'seen'; }],
+      ...(['prep','leave','start'].includes(k) ? [['🚶 Plec acum', () => setStatus(e,'leaving')]] : []),
+      ...(e.insistent ? [['⏰ 5 min', () => { S.fired[fid].snooze = now().getTime() + 5*MIN; }]] : []),
+    ],
+    onClose: () => { if (!e.insistent) S.fired[fid].ack = true; },
+  });
+  try { navigator.vibrate?.([200,100,200]); } catch {}
+}
+function tick(){
+  const n = now().getTime();
+  for (const e of S.events){
+    if (e.owner !== S.me || isDone(e) || e.status === 'leaving') continue;
+    for (const [k, at, text] of triggers(e)){
+      if (at > n || n - at > 30*MIN) continue;
+      const fid = e.id + ':' + k, f = S.fired[fid];
+      if (!f){ S.fired[fid] = { ack:false, last:n }; showReminder(e, k, text, fid); }
+      else if (!f.ack && e.insistent && n - f.last >= MIN && n >= (f.snooze || 0)){ f.last = n; showReminder(e, k, text, fid, true); }
+    }
+  }
+  for (const x of S.nudges) if (x.to === S.me && !x.read && !x.shown){
+    x.shown = true;
+    const e = S.events.find(e => e.id === x.eventId);
+    toast({ id:'n' + x.id, sticky:true, kind:'nud', html:`💌 <b>${esc(nm(x.from))}</b>: ${esc(x.text)}`,
+            sub: e ? `despre ${e.emoji} ${esc(e.title)}` : '', actions:[['👍 Mulțumesc', () => { x.read = true; }]] });
+  }
+  save();
+}
+function setStatus(e, st){
+  e.status = e.status === st ? null : st;
+  ack(e); save(); render();
+  if (e.status === 'arrived' && e.shared) toast({ html:`✅ Super! ${esc(nm(other(S.me)))} vede că ai ajuns.` });
+}
+
+/* ---------- Actions ---------- */
+const ACT = {
+  me: (_,k) => { S.me = k; $('#toasts').innerHTML = ''; save(); render(); tick(); },
+  tab: (_,v) => { S.view = v; save(); render(); window.scrollTo(0,0); },
+  wk: (_,a) => { weekStart = a === '0' ? mondayOf(now()) : addDays(weekStart, 7 * +a); renderMain(); },
+  open: e => e && openEvent(e),
+  status: (e,st) => setStatus(e, st),
+  check: (e,i) => { e.checklist[+i].done = !e.checklist[+i].done; save(); renderMain(); },
+  energy: (_,k) => { const t = iso(now()); S.energy[S.me] ??= {}; S.energy[S.me][t] = S.energy[S.me][t] === k ? undefined : k; save(); render(); },
+  nudgeRead: (_,id) => { const x = S.nudges.find(x => x.id === id); if (x) x.read = true; document.querySelector(`[data-tid="n${id}"]`)?.remove(); save(); render(); },
+  done: e => { e.status = 'done'; save(); render(); toast({ html:'Bravo! 🎉' }); },
+  skip: e => { e.status = 'skipped'; save(); render(); toast({ html:'E în regulă 💛 Nu orice trebuie făcut.' }); },
+  redo: e => openEvent(e, { date:iso(addDays(now(),1)), _mode:'redo' }),
+  ritual: (_,i) => { const wk = iso(weekStart); S.ritual[wk] ??= []; S.ritual[wk][+i] = !S.ritual[wk][+i]; save(); renderMain(); },
+  planEve: (_,date) => openEvent(null, { date, start:'19:00', end:'21:00', emoji:'💛', title:'Seară împreună' }),
+  inSched: (_,id) => {
+    const it = S.inbox.find(x => x.id === id); if (!it) return;
+    const { p } = parseQuick(it.text);
+    openEvent(null, { ...p, title:p.title || it.text, _fromInbox:id });
+  },
+  inDone: (_,id) => { S.inbox = S.inbox.filter(x => x.id !== id); save(); render(); toast({ html:'✓ Bravo! 🎉' }); },
+  inDel: (_,id) => { S.inbox = S.inbox.filter(x => x.id !== id); save(); render(); },
+};
+document.addEventListener('click', ev => {
+  if (ev.target.closest('dialog, #toasts')) return;
+  const b = ev.target.closest('[data-act]');
+  if (b){ ACT[b.dataset.act]?.(S.events.find(x => x.id === b.dataset.id), b.dataset.arg); return; }
+  const col = ev.target.closest('.col');
+  if (col){
+    const yy = ev.clientY - col.getBoundingClientRect().top;
+    const m = H_START*60 + Math.floor(yy / ROW * 2) * 30;
+    openEvent(null, { date:col.dataset.date, start:minToHm(m), end:minToHm(Math.min(m + 60, 23*60 + 59)) });
+  }
+});
+dlg.addEventListener('click', ev => { if (ev.target === dlg) dlg.close(); });
+dlg.addEventListener('close', () => render());
+$('#settingsBtn').onclick = openSettings;
+$('#clock').onclick = openSettings;
+
+/* ---------- Quick capture ---------- */
+const qc = $('#qc'), qcPrev = $('#qcPrev');
+qc.addEventListener('input', () => {
+  const text = qc.value.trim();
+  if (!text){ qcPrev.textContent = ''; return; }
+  const { p, tpl, complete, empty } = parseQuick(text);
+  qcPrev.textContent = empty
+    ? `📥 Fără dată sau oră, merge în Inbox. Enter ca să-l salvezi.`
+    : `${p.emoji} ${p.title || '…'} · ${p.date ? relDay(p.date) : 'dată?'}${p.start ? `, ${p.start}–${p.end}` : ', oră?'}${p.shared ? '' : ' · 🔒 privat'}${tpl ? ` · ⭐ șablon ${tpl.name}` : ''} · Enter ${complete ? 'adaugă' : 'deschide formularul'}`;
+});
+qc.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter') return;
+  const text = qc.value.trim(); if (!text) return;
+  const { p, complete, empty } = parseQuick(text);
+  qc.value = ''; qcPrev.textContent = '';
+  if (empty){
+    S.inbox.unshift({ id:uid(), owner:S.me, text, at:now().toISOString() });
+    save(); render(); toast({ html:`📥 În Inbox: ${esc(text)}`, sub:'Îl programezi când vrei.' });
+  } else if (complete){
+    const e = { id:uid(), owner:S.me, note:'', prep:0, travel:0, reminders:[60], insistent:false, allowNudge:true, checklist:[], status:null, ...p };
+    S.events.push(e); save(); render(); tick();
+    const cnt = countDay(S.me, e.date);
+    toast({ html:`✅ Adăugat: ${e.emoji} ${esc(e.title)} · ${relDay(e.date)}, ${e.start}`,
+            sub: cnt >= OVERLOAD ? `⚠️ Ai ${cnt} lucruri în ziua asta.` : (e.shared ? `Vizibil pentru ${esc(nm(other(S.me)))}` : '🔒 Privat'),
+            actions:[['✏️ Editează', () => openEvent(e)], ['↩ Anulează', () => { S.events = S.events.filter(x => x !== e); }]] });
+  } else openEvent(null, p);
+});
+
+/* ---------- Start ---------- */
+render();
+tick();
+setInterval(() => {
+  tick(); renderHeader();
+  const busy = $('#main').contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (S.view === 'now' && !dlg.open && !busy) renderMain();
+}, 20000);
+</script>
+</body>
+</html>

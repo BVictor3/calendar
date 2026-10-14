@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calendar Comun</title>
+<meta name="description" content="Calendar partajat pentru doi.">
+<meta name="theme-color" content="#1d1d1f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="header" hidden>
+  <div class="top">
+    <h1>📅 Calendar Comun</h1>
+    <span id="meChip" class="mechip"></span>
+    <span class="spacer"></span>
+    <button class="btn" id="settingsBtn" aria-label="Setări">⚙️</button>
+  </div>
+  <div class="quick">
+    <input id="qc" autocomplete="off" enterkeyhint="done" placeholder="Scrie rapid: „dentist luni 17” · „sună la bancă”">
+    <div id="qcPrev"></div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+<main id="main"><div class="center meta">Se încarcă…</div></main>
+<div id="toasts"></div>
+<dialog id="dlg"><div id="dlgBody"></div></dialog>
+<script type="module" src="app.js"></script>
+</body>
+</html>

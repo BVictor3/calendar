@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function space(sid) { return get(/databases/$(db)/documents/spaces/$(sid)).data; }
+    function isMember(sid) { return signedIn() && uid() in space(sid).members; }
+
+    // Each user stores only which calendar they belong to.
+    match /users/{userId} {
+      allow read, write: if signedIn() && uid() == userId;
+    }
+
+    // A calendar for two. The id is unguessable and doubles as the invite code.
+    match /spaces/{sid} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.members == [uid()];
+      allow update: if signedIn() && (
+        // a member renames themself; membership stays the same
+        (uid() in resource.data.members && request.resource.data.members == resource.data.members)
+        // the second person joins through the invite link
+        || (!(uid() in resource.data.members)
+            && resource.data.members.size() < 2
+            && request.resource.data.members == resource.data.members.concat([uid()])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'names']))
+      );
+
+      // Private events are visible only to their owner; shared ones to both members.
+      match /events/{eid} {
+        allow read: if isMember(sid) && (resource.data.owner == uid() || resource.data.shared == true);
+        allow create: if isMember(sid) && request.resource.data.owner == uid();
+        allow update: if isMember(sid) && resource.data.owner == uid() && request.resource.data.owner == uid();
+        allow delete: if isMember(sid) && resource.data.owner == uid();
+      }
+
+      // Reminders sent to the other person, only on events where they allowed it.
+      match /nudges/{nid} {
+        allow read: if isMember(sid) && (resource.data.to == uid() || resource.data.from == uid());
+        allow create: if isMember(sid)
+          && request.resource.data.from == uid()
+          && get(/databases/$(db)/documents/spaces/$(sid)/events/$(request.resource.data.eventId)).data.allowNudge == true
+          && get(/databases/$(db)/documents/spaces/$(sid)/events/$(request.resource.data.eventId)).data.shared == true
+          && get(/databases/$(db)/documents/spaces/$(sid)/events/$(request.resource.data.eventId)).data.owner == request.resource.data.to;
+        allow update: if isMember(sid) && resource.data.to == uid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        allow delete: if isMember(sid) && resource.data.from == uid();
+      }
+
+      // Undated to-dos, private to their owner.
+      match /inbox/{iid} {
+        allow read, update, delete: if isMember(sid) && resource.data.owner == uid();
+        allow create: if isMember(sid) && request.resource.data.owner == uid();
+      }
+    }
+  }
+}
