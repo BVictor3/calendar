@@ -1,6 +1,6 @@
 // Lipește aici configurația din Firebase Console → Project settings → Your apps → Web app.
 // Aceste valori nu sunt secrete: accesul la date e protejat de regulile din firestore.rules.
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyCfNxUwyFwUFkUVGMKVACOf78is-Ndrh3Q",
   authDomain: "calendar-comun.firebaseapp.com",
   projectId: "calendar-comun",

@@ -28,6 +28,15 @@
 <main id="main"><div class="center meta">Se încarcă…</div></main>
 <div id="toasts"></div>
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
+<script>
+  // If the app fails to start (e.g. a broken firebase-config.js), show why instead of "Se încarcă…" forever.
+  addEventListener('error', e => {
+    const m = document.getElementById('main');
+    if (m && m.textContent.trim() === 'Se încarcă…')
+      m.innerHTML = '<div class="center"><b>⚠️ Aplicația nu a putut porni.</b><div class="meta" style="margin-top:8px"></div></div>',
+      m.querySelector('.meta').textContent = e.message || 'Eroare la încărcarea unui fișier.';
+  }, true);
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
