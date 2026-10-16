@@ -92,7 +92,13 @@ main{padding:14px 16px calc(90px + env(safe-area-inset-bottom))}
 
 /* Week grid */
 .grid{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:auto;box-shadow:var(--shadow);max-height:calc(100vh - 230px);max-width:1100px;margin:0 auto}
-.head,.body{display:grid;grid-template-columns:48px repeat(7,minmax(92px,1fr));min-width:700px}
+.grid{--hw:48px}
+.head,.body{display:grid;grid-template-columns:var(--hw) repeat(var(--cols,7),minmax(0,1fr))}
+.head>div[data-act]{cursor:pointer;border-radius:8px}
+.head>div[data-act]:hover{background:var(--bg)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:6px 11px;cursor:pointer;font-size:13px;white-space:nowrap}
+.seg button.on{background:var(--text);color:var(--panel)}
 .head{position:sticky;top:0;background:var(--panel);z-index:4;border-bottom:1px solid var(--line)}
 .head>div{padding:6px 4px;text-align:center;font-size:12px;color:var(--muted)}
 .head b{display:block;font-size:18px;color:var(--text);margin:0 auto}
@@ -153,3 +159,20 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
 h1,.mechip{white-space:nowrap}
 @media (max-width:560px){ .three{grid-template-columns:1fr 1fr} .three label:first-child{grid-column:1/-1} }
 @media (max-width:420px){ .mechip{display:none} }
+@media (max-width:600px){
+  main{padding-left:10px;padding-right:10px}
+  .toolbar{gap:6px}
+  .toolbar .legend{display:none}
+  .range{font-size:14px;padding:0 2px}
+  .grid{--hw:30px;max-height:calc(100dvh - 215px);border-radius:10px}
+  .hours div{font-size:9.5px;padding-right:3px}
+  .head>div{padding:4px 0;font-size:11px}
+  .head b{font-size:15px}
+  .head .is-today b{width:26px;height:26px;line-height:26px}
+  .ev{padding:2px 4px;font-size:11px}
+  .grid.c7 .ev{padding:1px 2px;font-size:10px;border-left-width:2px;border-radius:4px}
+  .grid.c7 .ev .t{font-weight:500;overflow-wrap:anywhere;line-height:1.15}
+  .grid.c7 .ev .m{display:none}
+  .grid.c7 .ev.narrow .tt{display:none}
+  .grid.c7 .ev.narrow{text-align:center;padding:1px 0}
+}

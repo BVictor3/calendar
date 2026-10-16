@@ -7,7 +7,8 @@ import { initializeFirestore, getFirestore, persistentLocalCache, persistentMult
 import { firebaseConfig } from './firebase-config.js';
 
 /* ---------- Constants & helpers ---------- */
-const H_START = 6, H_END = 24, ROW = 48, MIN = 6e4;
+const H_START = 6, H_END = 24, MIN = 6e4;
+let ROW = 48;
 const DAYS = ['Lun','Mar','Mie','Joi','Vin','Sâm','Dum'];
 const DAYS_LONG = ['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
 const MONTHS = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
@@ -73,6 +74,12 @@ catch { db = getFirestore(app); }
 /* ---------- State ---------- */
 const st = { user:null, sid:null, space:null, mine:[], shared:[], nudgesIn:[], nudgesOut:[], inbox:[], view:lsGet('cal.view','now'), unsub:[] };
 let weekStart = mondayOf(new Date());
+const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const isPhone = () => innerWidth <= 600;
+// The "Săptămână" tab shows 7, 3 or 1 day(s); phones default to 3 so text stays readable.
+let span = +lsGet('cal.span', isPhone() ? '3' : '7');
+const spanStart = anchor => span === 7 ? mondayOf(anchor) : startOfDay(anchor);
+let gridStart = spanStart(new Date());
 const me = () => st.user.uid;
 const partner = () => st.space?.members.find(u => u !== me()) || null;
 const keyOf = uid => st.space?.members.indexOf(uid) === 1 ? 'b' : 'a';
@@ -281,13 +288,18 @@ function renderHeader(){
 }
 
 function toolbar(){
-  const end = addDays(weekStart, 6), p = partner();
+  const grid = st.view === 'week', start = grid ? gridStart : weekStart, n = grid ? span : 7;
+  const end = addDays(start, n - 1), p = partner();
+  const range = n === 1 ? `${DAYS_LONG[(start.getDay()+6)%7]}, ${start.getDate()} ${MONTHS[start.getMonth()]}`
+    : `${start.getDate()} ${MONTHS[start.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]}`;
   return `<div class="toolbar">
     <button class="btn" data-act="wk" data-arg="-1" aria-label="Săptămâna trecută">‹</button>
     <button class="btn" data-act="wk" data-arg="0">Azi</button>
     <button class="btn" data-act="wk" data-arg="1" aria-label="Săptămâna viitoare">›</button>
-    <span class="range">${weekStart.getDate()} ${MONTHS[weekStart.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]} ${end.getFullYear()}</span>
+    <span class="range">${range}</span>
     <span class="spacer"></span>
+    ${grid ? `<div class="seg">${[[7,'7 zile'],[3,'3 zile'],[1,'Zi']].map(([k,l]) =>
+      `<button data-act="span" data-arg="${k}" class="${span === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
     <span class="legend">
       <span><i class="sw" style="background:${COLOR[keyOf(me())]}"></i>${esc(nm(me()))}</span>
       ${p ? `<span><i class="sw" style="background:${COLOR[keyOf(p)]}"></i>${esc(nm(p))}</span>` : ''}
@@ -383,14 +395,18 @@ function layoutDay(list){
 
 let lastWeekKey = null;
 function renderWeek(){
-  const n = new Date(), todayIso = iso(n), days = [...Array(7)].map((_,i) => addDays(weekStart,i));
-  const weekKey = iso(weekStart), prevScroll = lastWeekKey === weekKey ? main.querySelector('.grid')?.scrollTop : null;
+  ROW = isPhone() ? 40 : 48;
+  const n = new Date(), todayIso = iso(n), days = [...Array(span)].map((_,i) => addDays(gridStart,i));
+  const weekKey = iso(gridStart) + span, prevScroll = lastWeekKey === weekKey ? main.querySelector('.grid')?.scrollTop : null;
   lastWeekKey = weekKey;
   let head = '<div></div>';
-  days.forEach((d,i) => head += `<div class="${iso(d) === todayIso ? 'is-today' : ''}">${DAYS[i]}<b>${d.getDate()}</b></div>`);
+  days.forEach(d => {
+    const wd = (d.getDay()+6)%7;
+    head += `<div class="${iso(d) === todayIso ? 'is-today' : ''}" ${span > 1 ? `data-act="day" data-arg="${iso(d)}" title="Vezi doar ziua asta"` : ''}>${span === 1 ? DAYS_LONG[wd] : DAYS[wd]}<b>${d.getDate()}</b></div>`;
+  });
   let hours = '';
   for (let h = H_START; h < H_END; h++) hours += `<div>${h === H_START ? '' : pad(h) + ':00'}</div>`;
-  main.innerHTML = toolbar() + `<div class="grid" style="--h:${ROW}px">
+  main.innerHTML = toolbar() + `<div class="grid c${span}" style="--h:${ROW}px;--cols:${span}">
     <div class="head">${head}</div>
     <div class="body"><div class="hours">${hours}</div>${days.map(d =>
       `<div class="col ${iso(d) === todayIso ? 'today' : ''}" data-date="${iso(d)}" style="height:${(H_END-H_START)*ROW}px"></div>`).join('')}</div></div>`;
@@ -401,9 +417,9 @@ function renderWeek(){
     for (const { e, lane, lanes } of layoutDay(all.filter(e => e.date === di))){
       const top = y(toMin(e.start)), h = Math.max(22, (toMin(e.end) - toMin(e.start)) / 60 * ROW - 2), w = 100 / lanes;
       const unread = st.nudgesIn.some(x => x.eventId === e.id && !x.read);
-      html += `<div class="ev ${keyOf(e.owner)}${e.shared ? '' : ' private'}${e.status === 'arrived' ? ' done' : ''}" data-act="open" data-id="${e.id}"
-        style="top:${top}px;height:${h}px;left:calc(${w*lane}% + 2px);width:calc(${w}% - 4px)">
-        <div class="t">${e.emoji || ''} ${esc(e.title)}${unread ? ' 💌' : ''}</div>
+      html += `<div class="ev ${keyOf(e.owner)}${e.shared ? '' : ' private'}${e.status === 'arrived' ? ' done' : ''}${lanes > 1 ? ' narrow' : ''}" data-act="open" data-id="${e.id}"
+        style="top:${top}px;height:${h}px;left:calc(${w*lane}% + 2px);width:calc(${w}% - 4px)" title="${esc(e.title)}">
+        <div class="t">${e.emoji || ''} <span class="tt">${esc(e.title)}</span>${unread ? ' 💌' : ''}</div>
         <div class="m">${e.owner !== me() ? esc(nm(e.owner)) + ' · ' : ''}${e.start}–${e.end}${e.shared ? '' : ' · 🔒'}${e.status ? ' · ' + STATUS[e.status][0] : ''}</div></div>`;
     }
     if (di === todayIso){
@@ -615,7 +631,17 @@ function toast({ id, html, sub, actions = [], sticky = false, kind = '' }){
 const findEv = id => events().find(x => x.id === id);
 const ACT = {
   tab: v => { st.view = v; lsSet('cal.view', v); render(); window.scrollTo(0,0); },
-  wk: a => { weekStart = a === '0' ? mondayOf(new Date()) : addDays(weekStart, 7 * +a); render(); },
+  wk: a => {
+    if (st.view === 'week') gridStart = a === '0' ? spanStart(new Date()) : addDays(gridStart, span * +a);
+    else weekStart = a === '0' ? mondayOf(new Date()) : addDays(weekStart, 7 * +a);
+    render();
+  },
+  span: k => {
+    const today = startOfDay(new Date());
+    const anchor = today >= gridStart && today < addDays(gridStart, span) ? today : gridStart;
+    span = +k; lsSet('cal.span', k); gridStart = spanStart(anchor); render();
+  },
+  day: d => { span = 1; lsSet('cal.span', '1'); gridStart = new Date(d + 'T00:00'); render(); },
   open: (_, id) => { const e = findEv(id); if (e) openEvent(e); },
   status: (s, id) => { const e = findEv(id); if (e) setStatus(e, s); },
   nudgeRead: id => { const x = st.nudgesIn.find(x => x.id === id); if (x) markRead(x); },
@@ -636,6 +662,16 @@ document.addEventListener('click', ev => {
     const m = H_START*60 + Math.floor((ev.clientY - c.getBoundingClientRect().top) / ROW * 2) * 30;
     openEvent(null, { date:c.dataset.date, start:minToHm(m), end:minToHm(Math.min(m + 60, 23*60 + 59)) });
   }
+});
+
+// Swipe left/right on the calendar or agenda to move to the next/previous period.
+let touch = null;
+main.addEventListener('touchstart', ev => { touch = ev.touches.length === 1 ? [ev.touches[0].clientX, ev.touches[0].clientY] : null; }, { passive:true });
+main.addEventListener('touchend', ev => {
+  if (!touch || !['week','agenda'].includes(st.view) || dlg.open) return;
+  const dx = ev.changedTouches[0].clientX - touch[0], dy = ev.changedTouches[0].clientY - touch[1];
+  touch = null;
+  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) ACT.wk(dx < 0 ? '1' : '-1');
 });
 
 /* ---------- Quick capture ---------- */
