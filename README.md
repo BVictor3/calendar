@@ -5,6 +5,7 @@ Calendar pentru doi. Fiecare eveniment poate fi **partajat** (îl vedeți amând
 - **⏱ Acum**: următorul eveniment cu numărătoare inversă, ora de pregătire și ora de plecare.
 - **💌 Mementouri între voi**: trimiți un memento pe evenimentul celuilalt, dacă el sau ea l-a permis. Statusul „a văzut / a plecat / a ajuns” îl vedeți amândoi.
 - **Introducere rapidă**: scrii „dentist luni 17” și evenimentul e creat. Ce nu are dată merge în 📥 Inbox.
+- Evenimente recurente (zilnic, în zilele lucrătoare, săptămânal, la 2 săptămâni, lunar, anual), cu „doar aceasta / toată seria” la editare și ștergere. Merge și din introducerea rapidă: „sală în fiecare marți 19”, „pastile zilnic la 8”.
 - Vizualizare pe săptămână și agendă. Merge offline și se instalează pe telefon ca aplicație.
 
 Aplicația e un site static (GitHub Pages). Datele stau în Firebase (Firestore), iar autentificarea se face cu Google.
@@ -48,4 +49,3 @@ Apoi deschizi <http://localhost:8000>. `localhost` e autorizat implicit în Fire
 
 ## Ce urmează (posibil)
 - Notificări push pe telefon și când aplicația e închisă. Necesită Firebase Cloud Functions, adică planul Blaze cu plată la utilizare, practic gratuit pentru doi utilizatori.
-- Evenimente recurente.
