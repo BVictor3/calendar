@@ -102,7 +102,7 @@ try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabMana
 catch { db = getFirestore(app); }
 
 /* ---------- State ---------- */
-const st = { user:null, sid:null, space:null, mine:[], shared:[], nudgesIn:[], nudgesOut:[], inbox:[], view:lsGet('cal.view','now'), unsub:[] };
+const st = { user:null, sid:null, space:null, mine:[], shared:[], nudgesIn:[], nudgesOut:[], inbox:[], view:lsGet('cal.view','now'), unsub:[], loaded:{} };
 let weekStart = mondayOf(new Date());
 const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const isPhone = () => innerWidth <= 600;
@@ -213,26 +213,31 @@ const docs = s => s.docs.map(d => ({ id:d.id, ...d.data() }));
 const shownNudges = new Set();
 
 function enterSpace(sid){
-  st.sid = sid;
+  st.sid = sid; st.loaded = {};
   $('#header').hidden = false;
   main.innerHTML = '<div class="center meta">Se încarcă…</div>';
   const uid = me();
   listen(doc(db, 'spaces', sid), s => { st.space = s.data(); scheduleRender(); });
-  listen(query(col('events'), where('owner', '==', uid)), s => { st.mine = docs(s); scheduleRender(); });
-  listen(query(col('events'), where('shared', '==', true)), s => { st.shared = docs(s); scheduleRender(); });
+  listen(query(col('events'), where('owner', '==', uid)), s => { st.mine = docs(s); st.loaded.mine = true; announceNudges(); scheduleRender(); });
+  listen(query(col('events'), where('shared', '==', true)), s => { st.shared = docs(s); st.loaded.shared = true; announceNudges(); scheduleRender(); });
   listen(query(col('nudges'), where('to', '==', uid)), s => { st.nudgesIn = docs(s); announceNudges(); scheduleRender(); });
   listen(query(col('nudges'), where('from', '==', uid)), s => { st.nudgesOut = docs(s); scheduleRender(); });
   listen(query(col('inbox'), where('owner', '==', uid)), s => { st.inbox = docs(s); scheduleRender(); });
 }
 
+// A nudge is shown once: closing it (× or 👍) marks it read for good.
+// Nudges about an event that was deleted or has already ended are marked read silently.
 function announceNudges(){
+  if (!st.loaded.mine || !st.loaded.shared) return;
+  const now = new Date();
   for (const x of st.nudgesIn){
     if (x.read || shownNudges.has(x.id)) continue;
     shownNudges.add(x.id);
     const e = events().find(e => e.id === x.eventId);
-    const about = e ? `despre ${e.emoji || ''} ${e.title}` : '';
+    if (!e || evEnd({ ...e, date:x.date || e.date }) < now){ markRead(x); continue; }
+    const about = `despre ${e.emoji || ''} ${e.title}`;
     toast({ id:'n' + x.id, sticky:true, kind:'nud', html:`💌 <b>${esc(nm(x.from))}</b>: ${esc(x.text)}`, sub:esc(about),
-            actions:[['👍 Mulțumesc', () => markRead(x)]] });
+            actions:[['👍 Mulțumesc', () => markRead(x)]], onClose:() => markRead(x) });
     if (document.hidden && 'Notification' in window && Notification.permission === 'granted')
       navigator.serviceWorker?.ready.then(r => r.showNotification(`💌 ${nm(x.from)}`, { body:`${x.text}${about ? '\n' + about : ''}`, icon:'icons/icon-192.png', tag:x.id }));
   }
@@ -686,7 +691,7 @@ async function shareInvite(){
 }
 
 /* ---------- Toasts ---------- */
-function toast({ id, html, sub, actions = [], sticky = false, kind = '' }){
+function toast({ id, html, sub, actions = [], sticky = false, kind = '', onClose }){
   const box = $('#toasts');
   if (id && box.querySelector(`[data-tid="${id}"]`)) return;
   const el = document.createElement('div');
@@ -699,7 +704,7 @@ function toast({ id, html, sub, actions = [], sticky = false, kind = '' }){
     b.onclick = () => { el.remove(); fn(); };
     el.querySelector('.tact').appendChild(b);
   });
-  el.querySelector('.tx').onclick = () => el.remove();
+  el.querySelector('.tx').onclick = () => { el.remove(); onClose?.(); };
   box.appendChild(el);
   if (!sticky) setTimeout(() => el.remove(), 5000);
 }
