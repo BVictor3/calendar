@@ -7,10 +7,10 @@ import { initializeFirestore, getFirestore, persistentLocalCache, persistentMult
 import { firebaseConfig } from './firebase-config.js';
 
 /* ---------- Constants & helpers ---------- */
-const H_START = 6, H_END = 24, MIN = 6e4;
-let ROW = 48;
+const MIN = 6e4;
 const DAYS = ['Lun','Mar','Mie','Joi','Vin','Sâm','Dum'];
 const DAYS_LONG = ['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
+const MONTHS_LONG = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
 const MONTHS = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
 const COLOR = { a:'var(--a)', b:'var(--b)' };
 const STATUS = { seen:['👀','A văzut'], leaving:['🚶','A plecat'], arrived:['✅','A ajuns'] };
@@ -104,12 +104,10 @@ catch { db = getFirestore(app); }
 /* ---------- State ---------- */
 const st = { user:null, sid:null, space:null, mine:[], shared:[], nudgesIn:[], nudgesOut:[], inbox:[], view:lsGet('cal.view','now'), unsub:[], loaded:{} };
 let weekStart = mondayOf(new Date());
-const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const isPhone = () => innerWidth <= 600;
-// The "Săptămână" tab shows 7, 3 or 1 day(s); phones default to 3 so text stays readable.
-let span = +lsGet('cal.span', isPhone() ? '3' : '7');
-const spanStart = anchor => span === 7 ? mondayOf(anchor) : startOfDay(anchor);
-let gridStart = spanStart(new Date());
+// The "Calendar" tab shows a month grid, a week strip or a day timeline, all around one selected day.
+let calView = lsGet('cal.calview', 'week');
+let selDate = iso(new Date());
+const sel = () => new Date(selDate + 'T00:00');
 const me = () => st.user.uid;
 const partner = () => st.space?.members.find(u => u !== me()) || null;
 const keyOf = uid => st.space?.members.indexOf(uid) === 1 ? 'b' : 'a';
@@ -324,31 +322,33 @@ function render(){
   if (!st.space){ main.innerHTML = '<div class="center meta">Se încarcă…</div>'; return; }
   renderHeader();
   if (typing()) return;
-  ({ now:renderNow, week:renderWeek, agenda:renderAgenda, inbox:renderInbox }[st.view] || renderNow)();
+  ({ now:renderNow, week:renderCalendar, agenda:renderAgenda, inbox:renderInbox }[st.view] || renderNow)();
 }
 
 function renderHeader(){
   $('#meChip').innerHTML = `<span class="dot" style="background:${COLOR[keyOf(me())]}"></span>${esc(nm(me()))}`
     + (partner() ? ` &amp; <span class="dot" style="background:${COLOR[keyOf(partner())]}"></span>${esc(nm(partner()))}` : '');
   const nudN = st.nudgesIn.filter(x => !x.read).length;
-  const tabs = [['now','⏱ Acum',nudN],['week','🗓 Săptămână'],['agenda','📋 Agendă'],['inbox','📥 Inbox',st.inbox.length]];
+  const tabs = [['now','⏱ Acum',nudN],['week','🗓 Calendar'],['agenda','📋 Agendă'],['inbox','📥 Inbox',st.inbox.length]];
   $('#tabs').innerHTML = tabs.map(([k,l,c]) =>
     `<button data-act="tab" data-arg="${k}" class="${st.view === k ? 'on' : ''}">${l}${c ? ` <span class="count">${c}</span>` : ''}</button>`).join('');
 }
 
 function toolbar(){
-  const grid = st.view === 'week', start = grid ? gridStart : weekStart, n = grid ? span : 7;
-  const end = addDays(start, n - 1), p = partner();
-  const range = n === 1 ? `${DAYS_LONG[(start.getDay()+6)%7]}, ${start.getDate()} ${MONTHS[start.getMonth()]}`
-    : `${start.getDate()} ${MONTHS[start.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]}`;
+  const cal = st.view === 'week', p = partner(), s = sel();
+  const span = (a, b) => `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]}`;
+  const range = !cal ? span(weekStart, addDays(weekStart, 6))
+    : calView === 'month' ? `${MONTHS_LONG[s.getMonth()]} ${s.getFullYear()}`
+    : calView === 'week' ? span(mondayOf(s), addDays(mondayOf(s), 6))
+    : `${DAYS_LONG[(s.getDay()+6)%7]}, ${s.getDate()} ${MONTHS[s.getMonth()]}`;
   return `<div class="toolbar">
-    <button class="btn" data-act="wk" data-arg="-1" aria-label="Săptămâna trecută">‹</button>
+    <button class="btn" data-act="wk" data-arg="-1" aria-label="Înapoi">‹</button>
     <button class="btn" data-act="wk" data-arg="0">Azi</button>
-    <button class="btn" data-act="wk" data-arg="1" aria-label="Săptămâna viitoare">›</button>
+    <button class="btn" data-act="wk" data-arg="1" aria-label="Înainte">›</button>
     <span class="range">${range}</span>
     <span class="spacer"></span>
-    ${grid ? `<div class="seg">${[[7,'7 zile'],[3,'3 zile'],[1,'Zi']].map(([k,l]) =>
-      `<button data-act="span" data-arg="${k}" class="${span === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
+    ${cal ? `<div class="seg">${[['month','Lună'],['week','Săptămână'],['day','Zi']].map(([k,l]) =>
+      `<button data-act="calview" data-arg="${k}" class="${calView === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
     <span class="legend">
       <span><i class="sw" style="background:${COLOR[keyOf(me())]}"></i>${esc(nm(me()))}</span>
       ${p ? `<span><i class="sw" style="background:${COLOR[keyOf(p)]}"></i>${esc(nm(p))}</span>` : ''}
@@ -431,54 +431,75 @@ function nextCard(e, n){
 }
 
 /* ----- Week ----- */
-function layoutDay(list){
-  list.sort(byStart);
-  const lanes = [], pos = new Map();
-  for (const e of list){
-    let i = lanes.findIndex(end => end <= toMin(e.start));
-    if (i < 0){ i = lanes.length; lanes.push(0); }
-    lanes[i] = toMin(e.end); pos.set(e.id, i);
-  }
-  return list.map(e => ({ e, lane:pos.get(e.id), lanes:lanes.length }));
+/* ----- Calendar: month / week / day ----- */
+const evTags = e => `${e.repeat ? `<span class="tag">🔁 ${REPEAT[e.repeat]}</span>` : ''}${e.shared ? '' : '<span class="tag">🔒 privat</span>'}${e.status ? `<span class="tag">${STATUS[e.status].join(' ')}</span>` : ''}`;
+const unread = e => st.nudgesIn.some(x => x.eventId === e.id && (!x.date || x.date === e.date) && !x.read) ? ' 💌' : '';
+const byDate = list => { const m = {}; for (const e of list) (m[e.date] ||= []).push(e); return m; };
+const cchip = e => `<span class="cchip ${keyOf(e.owner)}${e.shared ? '' : ' private'}"><span class="ce">${e.emoji || '📌'}</span><span class="ct">${e.start} ${esc(e.title)}</span></span>`;
+
+function dayCell(d, map, cls = ''){
+  const di = iso(d), list = map[di] || [], max = 3;
+  return `<button class="dcell ${cls}${di === iso(new Date()) ? ' today' : ''}${di === selDate ? ' sel' : ''}" data-act="pick" data-arg="${di}">
+    <span class="dnum">${d.getDate()}</span>
+    <span class="cchips">${list.slice(0, max).map(cchip).join('')}${list.length > max ? `<span class="more">+${list.length - max}</span>` : ''}</span></button>`;
 }
 
-let lastWeekKey = null;
-function renderWeek(){
-  ROW = isPhone() ? 40 : 48;
-  const n = new Date(), todayIso = iso(n), days = [...Array(span)].map((_,i) => addDays(gridStart,i));
-  const weekKey = iso(gridStart) + span, prevScroll = lastWeekKey === weekKey ? main.querySelector('.grid')?.scrollTop : null;
-  lastWeekKey = weekKey;
-  let head = '<div></div>';
-  days.forEach(d => {
-    const wd = (d.getDay()+6)%7;
-    head += `<div class="${iso(d) === todayIso ? 'is-today' : ''}" ${span > 1 ? `data-act="day" data-arg="${iso(d)}" title="Vezi doar ziua asta"` : ''}>${span === 1 ? DAYS_LONG[wd] : DAYS[wd]}<b>${d.getDate()}</b></div>`;
-  });
-  let hours = '';
-  for (let h = H_START; h < H_END; h++) hours += `<div>${h === H_START ? '' : pad(h) + ':00'}</div>`;
-  main.innerHTML = toolbar() + `<div class="grid c${span}" style="--h:${ROW}px;--cols:${span}">
-    <div class="head">${head}</div>
-    <div class="body"><div class="hours">${hours}</div>${days.map(d =>
-      `<div class="col ${iso(d) === todayIso ? 'today' : ''}" data-date="${iso(d)}" style="height:${(H_END-H_START)*ROW}px"></div>`).join('')}</div></div>`;
-  const y = m => (m - H_START*60) / 60 * ROW, all = expand(events(), iso(days[0]), iso(days[days.length - 1]));
-  main.querySelectorAll('.col').forEach(c => {
-    const di = c.dataset.date;
-    let html = '';
-    for (const { e, lane, lanes } of layoutDay(all.filter(e => e.date === di))){
-      const top = y(toMin(e.start)), h = Math.max(22, (toMin(e.end) - toMin(e.start)) / 60 * ROW - 2), w = 100 / lanes;
-      const unread = st.nudgesIn.some(x => x.eventId === e.id && (!x.date || x.date === e.date) && !x.read);
-      html += `<div class="ev ${keyOf(e.owner)}${e.shared ? '' : ' private'}${e.status === 'arrived' ? ' done' : ''}${lanes > 1 ? ' narrow' : ''}" data-act="open" data-id="${e.id}" data-date="${e.date}"
-        style="top:${top}px;height:${h}px;left:calc(${w*lane}% + 2px);width:calc(${w}% - 4px)" title="${esc(e.title)}">
-        <div class="t">${e.emoji || ''} <span class="tt">${esc(e.title)}</span>${unread ? ' 💌' : ''}</div>
-        <div class="m">${e.owner !== me() ? esc(nm(e.owner)) + ' · ' : ''}${e.start}–${e.end}${e.repeat ? ' · 🔁' : ''}${e.shared ? '' : ' · 🔒'}${e.status ? ' · ' + STATUS[e.status][0] : ''}</div></div>`;
+const dayCards = list => list.length ? `<div class="dlist">${list.map(e => {
+  const lv = e.travel ? ` · pleacă la ${minToHm(Math.max(0, toMin(e.start) - e.travel))}` : '';
+  return `<div class="row" data-act="open" data-id="${e.id}" data-date="${e.date}">
+    <span class="bar" style="background:${COLOR[keyOf(e.owner)]}"></span><span class="time">${e.start}<span class="meta"> – ${e.end}</span></span>
+    <span class="grow"><b>${e.emoji || ''} ${esc(e.title)}${unread(e)}</b>${evTags(e)}
+    <div class="meta">${e.owner === me() ? 'Al meu' : esc(nm(e.owner))}${lv}${e.note ? ' · ' + esc(e.note) : ''}</div></span></div>`;
+}).join('')}</div>` : '<div class="empty-day">🌿 Nimic planificat</div>';
+
+// The day as a timeline of blocks with the free time between them, instead of an hour grid.
+// Your own events start at their prep/leave time, since that's when the time is really taken.
+function dayTimeline(list){
+  const n = new Date(), today = iso(n), nowM = n.getHours()*60 + n.getMinutes();
+  const items = list.map(e => ({ e, from:toMin(e.start) - (e.owner === me() ? (e.prep || 0) + (e.travel || 0) : 0), to:toMin(e.end) }));
+  const live = selDate === today && items.find(i => toMin(i.e.start) <= nowM && nowM < i.to);
+  if (selDate === today && !live) items.push({ now:true, from:nowM, to:nowM });
+  if (!items.length) return '<div class="empty-day">🌿 Zi liberă</div>';
+  items.sort((a,b) => a.from - b.from || (a.now ? -1 : 1));
+  let h = '<div class="tl">', cursor = null;
+  for (const it of items){
+    if (cursor !== null && it.from - cursor >= 15) h += `<div class="tl-gap">liber ${fmtDur((it.from - cursor) * MIN)}</div>`;
+    else if (cursor !== null && it.from < cursor && !it.now) h += '<div class="tl-warn">⏰ Prea strâns: se suprapune cu cel de dinainte</div>';
+    if (it.now) h += `<div class="tl-now">acum · ${fmtTime(n)}</div>`;
+    else {
+      const e = it.e, st0 = toMin(e.start), mine = e.owner === me(), steps = [];
+      if (mine && e.prep) steps.push(`🧴 ${minToHm(Math.max(0, it.from))}`);
+      if (mine && e.travel) steps.push(`🚶 ${minToHm(Math.max(0, st0 - e.travel))}`);
+      const past = selDate < today || (selDate === today && it.to <= nowM);
+      h += `<div class="tl-ev ${keyOf(e.owner)}${live === it ? ' live' : ''}${past ? ' past' : ''}" data-act="open" data-id="${e.id}" data-date="${e.date}">
+        <div class="tl-time">${e.start}<span>${e.end}</span></div>
+        <div class="tl-card"><b>${e.emoji || '📌'} ${esc(e.title)}${unread(e)}</b>${evTags(e)}
+          <div class="meta">${mine ? '' : esc(nm(e.owner)) + ' · '}${fmtDur((it.to - st0) * MIN)}${steps.length ? ' · ' + steps.join(' · ') : ''}${live === it ? ' · <b>acum</b>' : ''}</div></div></div>`;
     }
-    if (di === todayIso){
-      const m = n.getHours()*60 + n.getMinutes();
-      if (m >= H_START*60) html += `<div class="nowline" style="top:${y(m)}px"></div>`;
-    }
-    c.innerHTML = html;
-  });
-  const isThisWeek = days.some(d => iso(d) === todayIso);
-  main.querySelector('.grid').scrollTop = prevScroll ?? ((isThisWeek ? Math.max(H_START, n.getHours() - 2) : 8) - H_START) * ROW;
+    cursor = Math.max(cursor ?? -1, it.to);
+  }
+  return h + '</div>';
+}
+
+function renderCalendar(){
+  const s = sel(), all = events(), head = DAYS.map(d => `<div class="wd">${d}</div>`).join('');
+  let top = '';
+  if (calView === 'month'){
+    const start = mondayOf(new Date(s.getFullYear(), s.getMonth(), 1));
+    const end = addDays(mondayOf(new Date(s.getFullYear(), s.getMonth() + 1, 0)), 6);
+    const days = Math.round((end - start) / 864e5) + 1, map = byDate(expand(all, iso(start), iso(end)));
+    top = `<div class="mgrid">${head}${[...Array(days)].map((_,i) => {
+      const d = addDays(start, i); return dayCell(d, map, d.getMonth() === s.getMonth() ? '' : 'out');
+    }).join('')}</div>`;
+  } else if (calView === 'week'){
+    const start = mondayOf(s), map = byDate(expand(all, iso(start), iso(addDays(start, 6))));
+    top = `<div class="wstrip">${head}${[...Array(7)].map((_,i) => dayCell(addDays(start, i), map)).join('')}</div>`;
+  }
+  const list = expand(all, selDate, selDate), rel = relDay(selDate);
+  main.innerHTML = toolbar() + `<div class="cal">${top}
+    ${calView !== 'day' ? `<div class="dayhead"><b>${s.getDate()}</b> ${DAYS_LONG[(s.getDay()+6)%7]}${['azi','mâine','ieri'].includes(rel) ? ` · ${rel}` : ''}</div>` : ''}
+    ${calView === 'day' ? dayTimeline(list) : dayCards(list)}</div>
+    <button class="addpill" data-act="addOn">＋ Adaugă pe ${dayLabel(s)}</button>`;
 }
 
 /* ----- Agenda ----- */
@@ -714,16 +735,20 @@ const findEv = (id, date) => { const e = events().find(x => x.id === id); return
 const ACT = {
   tab: v => { st.view = v; lsSet('cal.view', v); render(); window.scrollTo(0,0); },
   wk: a => {
-    if (st.view === 'week') gridStart = a === '0' ? spanStart(new Date()) : addDays(gridStart, span * +a);
-    else weekStart = a === '0' ? mondayOf(new Date()) : addDays(weekStart, 7 * +a);
+    if (st.view === 'week'){
+      const s = sel(), today = new Date();
+      if (a === '0') selDate = iso(today);
+      else if (calView === 'month'){
+        const m = new Date(s.getFullYear(), s.getMonth() + +a, 1);
+        selDate = iso(m.getMonth() === today.getMonth() && m.getFullYear() === today.getFullYear() ? today : m);
+      } else selDate = iso(addDays(s, (calView === 'week' ? 7 : 1) * +a));
+    } else weekStart = a === '0' ? mondayOf(new Date()) : addDays(weekStart, 7 * +a);
     render();
   },
-  span: k => {
-    const today = startOfDay(new Date());
-    const anchor = today >= gridStart && today < addDays(gridStart, span) ? today : gridStart;
-    span = +k; lsSet('cal.span', k); gridStart = spanStart(anchor); render();
-  },
-  day: d => { span = 1; lsSet('cal.span', '1'); gridStart = new Date(d + 'T00:00'); render(); },
+  calview: v => { calView = v; lsSet('cal.calview', v); render(); },
+  // Tapping the already selected day opens its timeline.
+  pick: d => { if (d === selDate){ calView = 'day'; lsSet('cal.calview', 'day'); } else selDate = d; render(); },
+  addOn: () => openEvent(null, { date:selDate }),
   open: (_, id, date) => { const e = findEv(id, date); if (e) openEvent(e); },
   status: (s, id, date) => { const e = findEv(id, date); if (e) setStatus(e, s); },
   nudgeRead: id => { const x = st.nudgesIn.find(x => x.id === id); if (x) markRead(x); },
@@ -738,12 +763,7 @@ const ACT = {
 document.addEventListener('click', ev => {
   if (ev.target.closest('dialog, #toasts')) return;
   const b = ev.target.closest('[data-act]');
-  if (b){ ACT[b.dataset.act]?.(b.dataset.arg, b.dataset.id, b.dataset.date); return; }
-  const c = ev.target.closest('.col');
-  if (c){
-    const m = H_START*60 + Math.floor((ev.clientY - c.getBoundingClientRect().top) / ROW * 2) * 30;
-    openEvent(null, { date:c.dataset.date, start:minToHm(m), end:minToHm(Math.min(m + 60, 23*60 + 59)) });
-  }
+  if (b) ACT[b.dataset.act]?.(b.dataset.arg, b.dataset.id, b.dataset.date);
 });
 
 // Swipe left/right on the calendar or agenda to move to the next/previous period.
