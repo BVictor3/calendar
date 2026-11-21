@@ -910,4 +910,31 @@ qc.addEventListener('keydown', ev => {
 
 /* ---------- Start ---------- */
 setInterval(() => { if (st.view === 'now' && !dlg.open) render(); }, 30000);
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache:'none' }).catch(() => {});
+
+/* ---------- Auto-update ---------- */
+// An open (or installed) app keeps running the code it started with. Compare the files' ETag/Last-Modified
+// with the ones seen at startup; when they change, reload — but only when nothing is being typed or edited.
+const APP_FILES = ['index.html', 'app.js', 'style.css', 'firebase-config.js'];
+let bootVersion = null, updateReady = false;
+const remoteVersion = () => Promise.all(APP_FILES.map(f => fetch(f, { method:'HEAD', cache:'no-store' })
+  .then(r => r.headers.get('etag') || r.headers.get('last-modified') || String(r.status)))).then(v => v.join('|'));
+async function checkForUpdate(){
+  if (updateReady || !navigator.onLine) return;
+  try {
+    const v = await remoteVersion();
+    if (bootVersion === null) bootVersion = v;
+    else if (v !== bootVersion){ updateReady = true; applyUpdate(); }
+  } catch {}
+}
+function applyUpdate(){
+  if (!updateReady || dlg.open || typing() || qc.value.trim()) return;
+  try { sessionStorage.setItem('cal.updated', '1'); } catch {}
+  location.reload();
+}
+checkForUpdate();
+setInterval(checkForUpdate, 10 * 60e3);
+setInterval(applyUpdate, 15e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden){ checkForUpdate(); applyUpdate(); } });
+dlg.addEventListener('close', () => setTimeout(applyUpdate, 500));
+try { if (sessionStorage.getItem('cal.updated')){ sessionStorage.removeItem('cal.updated'); toast({ html:'✨ Aplicația s-a actualizat' }); } } catch {}
