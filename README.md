@@ -6,6 +6,7 @@ Calendar pentru doi. Fiecare eveniment poate fi **partajat** (îl vedeți amând
 - **💌 Mementouri între voi**: trimiți un memento pe evenimentul celuilalt, dacă el sau ea l-a permis. Statusul „a văzut / a plecat / a ajuns” îl vedeți amândoi.
 - **Introducere rapidă**: scrii „dentist luni 17” și evenimentul e creat. Ce nu are dată merge în 📥 Inbox.
 - Evenimente recurente (zilnic, în zilele lucrătoare, săptămânal, la 2 săptămâni, lunar, anual), cu „doar aceasta / toată seria” la editare și ștergere. Merge și din introducerea rapidă: „sală în fiecare marți 19”, „pastile zilnic la 8”.
+- **🎂 Zile de naștere**: o listă comună (nume, zi, an opțional) care apare automat în calendar în fiecare an, cu un contur animat, plus un anunț în „Acum” în ziua respectivă și cu o săptămână înainte.
 - **🗓 Calendar** pe lună, săptămână sau zi: sus vezi zilele ocupate, jos lista zilei alese. Vizualizarea „Zi” arată timpul liber dintre evenimente. Plus o agendă pe săptămână. Merge offline și se instalează pe telefon ca aplicație.
 
 Aplicația e un site static (GitHub Pages). Datele stau în Firebase (Firestore), iar autentificarea se face cu Google.

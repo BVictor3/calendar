@@ -46,6 +46,16 @@ service cloud.firestore {
         allow delete: if isMember(sid) && resource.data.from == uid();
       }
 
+      // Birthdays: shared by both members; month-day plus an optional birth year.
+      match /birthdays/{bid} {
+        allow read, delete: if isMember(sid);
+        allow create, update: if isMember(sid)
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+          && request.resource.data.md is string && request.resource.data.md.matches('^[01][0-9]-[0-3][0-9]$')
+          && (request.resource.data.year == null || request.resource.data.year is int);
+      }
+
       // Undated to-dos, private to their owner.
       match /inbox/{iid} {
         allow read, update, delete: if isMember(sid) && resource.data.owner == uid();

@@ -102,7 +102,7 @@ try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabMana
 catch { db = getFirestore(app); }
 
 /* ---------- State ---------- */
-const st = { user:null, sid:null, space:null, mine:[], shared:[], nudgesIn:[], nudgesOut:[], inbox:[], view:lsGet('cal.view','now'), unsub:[], loaded:{} };
+const st = { user:null, sid:null, space:null, mine:[], shared:[], nudgesIn:[], nudgesOut:[], inbox:[], birthdays:[], view:lsGet('cal.view','now'), unsub:[], loaded:{} };
 let weekStart = mondayOf(new Date());
 // The "Calendar" tab shows a month grid, a week strip or a day timeline, all around one selected day.
 let calView = lsGet('cal.calview', 'week');
@@ -221,6 +221,7 @@ function enterSpace(sid){
   listen(query(col('nudges'), where('to', '==', uid)), s => { st.nudgesIn = docs(s); announceNudges(); scheduleRender(); });
   listen(query(col('nudges'), where('from', '==', uid)), s => { st.nudgesOut = docs(s); scheduleRender(); });
   listen(query(col('inbox'), where('owner', '==', uid)), s => { st.inbox = docs(s); scheduleRender(); });
+  listen(col('birthdays'), s => { st.birthdays = docs(s); scheduleRender(); });
 }
 
 // A nudge is shown once: closing it (× or 👍) marks it read for good.
@@ -322,14 +323,14 @@ function render(){
   if (!st.space){ main.innerHTML = '<div class="center meta">Se încarcă…</div>'; return; }
   renderHeader();
   if (typing()) return;
-  ({ now:renderNow, week:renderCalendar, agenda:renderAgenda, inbox:renderInbox }[st.view] || renderNow)();
+  ({ now:renderNow, week:renderCalendar, agenda:renderAgenda, inbox:renderInbox, bday:renderBirthdays }[st.view] || renderNow)();
 }
 
 function renderHeader(){
   $('#meChip').innerHTML = `<span class="dot" style="background:${COLOR[keyOf(me())]}"></span>${esc(nm(me()))}`
     + (partner() ? ` &amp; <span class="dot" style="background:${COLOR[keyOf(partner())]}"></span>${esc(nm(partner()))}` : '');
   const nudN = st.nudgesIn.filter(x => !x.read).length;
-  const tabs = [['now','⏱ Acum',nudN],['week','🗓 Calendar'],['agenda','📋 Agendă'],['inbox','📥 Inbox',st.inbox.length]];
+  const tabs = [['now','⏱ Acum',nudN],['week','🗓 Calendar'],['agenda','📋 Agendă'],['inbox','📥 Inbox',st.inbox.length],['bday','🎂 Zile de naștere']];
   $('#tabs').innerHTML = tabs.map(([k,l,c]) =>
     `<button data-act="tab" data-arg="${k}" class="${st.view === k ? 'on' : ''}">${l}${c ? ` <span class="count">${c}</span>` : ''}</button>`).join('');
 }
@@ -371,6 +372,11 @@ function renderNow(){
   let h = `<div class="stack"><section class="card"><div class="greet">${greet}, ${esc(nm(me()))}</div>
     <div class="meta">Azi ai ${mineToday.length} ${mineToday.length === 1 ? 'lucru' : 'lucruri'}${p ? ` · ${esc(nm(p))} are ${todayAll.length - mineToday.length} partajate` : ''}.</div></section>`;
   if (!p) h += inviteCard();
+  const bdToday = birthdaysIn(today, today), bdSoon = birthdaysIn(iso(addDays(n, 1)), iso(addDays(n, 7)));
+  if (bdToday.length) h += `<section class="card ants bdcard" data-act="tab" data-arg="bday">${bdToday.map(x =>
+    `<div class="bdbig">🎂 Azi: ${bdLine(x)}! 🎉</div>`).join('')}</section>`;
+  if (bdSoon.length) h += `<div class="after" data-act="tab" data-arg="bday" style="cursor:pointer">🎂 În curând: ${bdSoon.map(x =>
+    `${esc(x.b.name)} ${relDay(x.date)}${daysUntil(x.date) > 1 ? ` (peste ${deTxt(daysUntil(x.date), 'zile')})` : ''}`).join(' · ')}</div>`;
 
   const nud = st.nudgesIn.filter(x => !x.read);
   if (nud.length) h += `<section class="card"><h2>💌 De la ${esc(nm(p))}</h2>${nud.map(x => {
@@ -431,20 +437,43 @@ function nextCard(e, n){
 }
 
 /* ----- Week ----- */
+/* ----- Birthdays ----- */
+// Stored once as month-day (md: "MM-DD") with an optional birth year; shown every year.
+// Romanian: 20+ (and round hundreds) take "de": 19 ani, 20 de ani.
+const deTxt = (n, w) => (n % 100 >= 1 && n % 100 <= 19) ? `${n} ${w}` : `${n} de ${w}`;
+const ageTxt = n => n === 1 ? '1 an' : deTxt(n, 'ani');
+const bdDate = (b, y) => `${y}-${b.md === '02-29' && new Date(y, 1, 29).getMonth() !== 1 ? '02-28' : b.md}`;
+function birthdaysIn(fromIso, toIso){
+  const out = [];
+  for (let y = +fromIso.slice(0, 4); y <= +toIso.slice(0, 4); y++)
+    for (const b of st.birthdays){
+      const date = bdDate(b, y);
+      if (date >= fromIso && date <= toIso) out.push({ b, date, age:b.year ? y - b.year : null });
+    }
+  return out.sort((x, y) => x.date.localeCompare(y.date) || x.b.name.localeCompare(y.b.name));
+}
+// Next occurrence on or after today.
+const nextBirthday = b => { const t = iso(new Date()), y = new Date().getFullYear(); const d = bdDate(b, y); return d >= t ? d : bdDate(b, y + 1); };
+const daysUntil = date => Math.round((new Date(date + 'T00:00') - new Date(iso(new Date()) + 'T00:00')) / 864e5);
+const bdLine = x => `${esc(x.b.name)}${x.age ? ` împlinește ${ageTxt(x.age)}` : ''}`;
+const bdChip = x => `<span class="cchip bday"><span class="ce">🎂</span><span class="ct">${esc(x.b.name)}</span></span>`;
+const bdRows = list => list.map(x => `<div class="row bdrow ants" data-act="tab" data-arg="bday">
+    <span class="time">🎂</span><span class="grow"><b>Zi de naștere: ${bdLine(x)}</b><div class="meta">toată ziua</div></span></div>`).join('');
+
 /* ----- Calendar: month / week / day ----- */
 const evTags = e => `${e.repeat ? `<span class="tag">🔁 ${REPEAT[e.repeat]}</span>` : ''}${e.shared ? '' : '<span class="tag">🔒 privat</span>'}${e.status ? `<span class="tag">${STATUS[e.status].join(' ')}</span>` : ''}`;
 const unread = e => st.nudgesIn.some(x => x.eventId === e.id && (!x.date || x.date === e.date) && !x.read) ? ' 💌' : '';
 const byDate = list => { const m = {}; for (const e of list) (m[e.date] ||= []).push(e); return m; };
 const cchip = e => `<span class="cchip ${keyOf(e.owner)}${e.shared ? '' : ' private'}"><span class="ce">${e.emoji || '📌'}</span><span class="ct">${e.start} ${esc(e.title)}</span></span>`;
 
-function dayCell(d, map, cls = ''){
-  const di = iso(d), list = map[di] || [], max = 3;
-  return `<button class="dcell ${cls}${di === iso(new Date()) ? ' today' : ''}${di === selDate ? ' sel' : ''}" data-act="pick" data-arg="${di}">
+function dayCell(d, map, bmap, cls = ''){
+  const di = iso(d), bd = bmap[di] || [], chips = [...bd.map(bdChip), ...(map[di] || []).map(cchip)], max = 3;
+  return `<button class="dcell ${cls}${di === iso(new Date()) ? ' today' : ''}${di === selDate ? ' sel' : ''}${bd.length ? ' ants' : ''}" data-act="pick" data-arg="${di}">
     <span class="dnum">${d.getDate()}</span>
-    <span class="cchips">${list.slice(0, max).map(cchip).join('')}${list.length > max ? `<span class="more">+${list.length - max}</span>` : ''}</span></button>`;
+    <span class="cchips">${chips.slice(0, max).join('')}${chips.length > max ? `<span class="more">+${chips.length - max}</span>` : ''}</span></button>`;
 }
 
-const dayCards = list => list.length ? `<div class="dlist">${list.map(e => {
+const dayCards = (list, bd = []) => list.length || bd.length ? `<div class="dlist">${bdRows(bd)}${list.map(e => {
   const lv = e.travel ? ` · pleacă la ${minToHm(Math.max(0, toMin(e.start) - e.travel))}` : '';
   return `<div class="row" data-act="open" data-id="${e.id}" data-date="${e.date}">
     <span class="bar" style="background:${COLOR[keyOf(e.owner)]}"></span><span class="time">${e.start}<span class="meta"> – ${e.end}</span></span>
@@ -454,14 +483,15 @@ const dayCards = list => list.length ? `<div class="dlist">${list.map(e => {
 
 // The day as a timeline of blocks with the free time between them, instead of an hour grid.
 // Your own events start at their prep/leave time, since that's when the time is really taken.
-function dayTimeline(list){
+function dayTimeline(list, bd = []){
   const n = new Date(), today = iso(n), nowM = n.getHours()*60 + n.getMinutes();
+  const banner = bd.length ? `<div class="dlist">${bdRows(bd)}</div>` : '';
   const items = list.map(e => ({ e, from:toMin(e.start) - (e.owner === me() ? (e.prep || 0) + (e.travel || 0) : 0), to:toMin(e.end) }));
   const live = selDate === today && items.find(i => toMin(i.e.start) <= nowM && nowM < i.to);
   if (selDate === today && !live) items.push({ now:true, from:nowM, to:nowM });
-  if (!items.length) return '<div class="empty-day">🌿 Zi liberă</div>';
+  if (!items.length) return banner + (bd.length ? '' : '<div class="empty-day">🌿 Zi liberă</div>');
   items.sort((a,b) => a.from - b.from || (a.now ? -1 : 1));
-  let h = '<div class="tl">', cursor = null;
+  let h = banner + '<div class="tl">', cursor = null;
   for (const it of items){
     if (cursor !== null && it.from - cursor >= 15) h += `<div class="tl-gap">liber ${fmtDur((it.from - cursor) * MIN)}</div>`;
     else if (cursor !== null && it.from < cursor && !it.now) h += '<div class="tl-warn">⏰ Prea strâns: se suprapune cu cel de dinainte</div>';
@@ -488,17 +518,19 @@ function renderCalendar(){
     const start = mondayOf(new Date(s.getFullYear(), s.getMonth(), 1));
     const end = addDays(mondayOf(new Date(s.getFullYear(), s.getMonth() + 1, 0)), 6);
     const days = Math.round((end - start) / 864e5) + 1, map = byDate(expand(all, iso(start), iso(end)));
+    const bmap = byDate(birthdaysIn(iso(start), iso(end)));
     top = `<div class="mgrid">${head}${[...Array(days)].map((_,i) => {
-      const d = addDays(start, i); return dayCell(d, map, d.getMonth() === s.getMonth() ? '' : 'out');
+      const d = addDays(start, i); return dayCell(d, map, bmap, d.getMonth() === s.getMonth() ? '' : 'out');
     }).join('')}</div>`;
   } else if (calView === 'week'){
     const start = mondayOf(s), map = byDate(expand(all, iso(start), iso(addDays(start, 6))));
-    top = `<div class="wstrip">${head}${[...Array(7)].map((_,i) => dayCell(addDays(start, i), map)).join('')}</div>`;
+    const bmap = byDate(birthdaysIn(iso(start), iso(addDays(start, 6))));
+    top = `<div class="wstrip">${head}${[...Array(7)].map((_,i) => dayCell(addDays(start, i), map, bmap)).join('')}</div>`;
   }
-  const list = expand(all, selDate, selDate), rel = relDay(selDate);
+  const list = expand(all, selDate, selDate), bd = birthdaysIn(selDate, selDate), rel = relDay(selDate);
   main.innerHTML = toolbar() + `<div class="cal">${top}
     ${calView !== 'day' ? `<div class="dayhead"><b>${s.getDate()}</b> ${DAYS_LONG[(s.getDay()+6)%7]}${['azi','mâine','ieri'].includes(rel) ? ` · ${rel}` : ''}</div>` : ''}
-    ${calView === 'day' ? dayTimeline(list) : dayCards(list)}</div>
+    ${calView === 'day' ? dayTimeline(list, bd) : dayCards(list, bd)}</div>
     <button class="addpill" data-act="addOn">＋ Adaugă pe ${dayLabel(s)}</button>`;
 }
 
@@ -508,18 +540,61 @@ function renderAgenda(){
   let h = toolbar() + '<div class="stack">';
   for (let i = 0; i < 7; i++){
     const d = addDays(weekStart,i), di = iso(d);
-    const list = all.filter(e => e.date === di).sort(byStart);
-    h += `<div class="day ${di === todayIso ? 'today' : ''}"><h3>${DAYS_LONG[i]}, ${d.getDate()} ${MONTHS[d.getMonth()]}</h3>`;
+    const list = all.filter(e => e.date === di).sort(byStart), bd = birthdaysIn(di, di);
+    h += `<div class="day ${di === todayIso ? 'today' : ''}"><h3>${DAYS_LONG[i]}, ${d.getDate()} ${MONTHS[d.getMonth()]}</h3>${bdRows(bd)}`;
     h += list.length ? list.map(e => {
       const lv = e.travel ? ` · pleacă la ${minToHm(Math.max(0, toMin(e.start) - e.travel))}` : '';
       return `<div class="row" data-act="open" data-id="${e.id}" data-date="${e.date}">
         <span class="bar" style="background:${COLOR[keyOf(e.owner)]}"></span><span class="time">${e.start} – ${e.end}</span>
         <span class="grow"><b>${e.emoji || ''} ${esc(e.title)}</b>${e.repeat ? `<span class="tag">🔁 ${REPEAT[e.repeat]}</span>` : ''}${e.shared ? '' : '<span class="tag">🔒 privat</span>'}${e.status ? `<span class="tag">${STATUS[e.status].join(' ')}</span>` : ''}
         <div class="meta">${e.owner === me() ? 'Al meu' : esc(nm(e.owner))}${lv}${e.note ? ' · ' + esc(e.note) : ''}</div></span></div>`;
-    }).join('') : '<div class="empty">Nimic planificat</div>';
+    }).join('') : bd.length ? '' : '<div class="empty">Nimic planificat</div>';
     h += '</div>';
   }
   main.innerHTML = h + '</div>';
+}
+
+/* ----- Birthdays tab ----- */
+let bdEditing = null;
+const bdLabel = b => `${+b.md.slice(3)} ${MONTHS_LONG[+b.md.slice(0, 2) - 1].toLowerCase()}${b.year ? ` ${b.year}` : ''}`;
+const bdInputs = (b = {}) => `<input name="name" maxlength="60" placeholder="Nume" value="${esc(b.name || '')}" aria-label="Nume">
+  <input type="date" name="date" value="${b.md ? `${b.year || 2000}-${b.md}` : ''}" aria-label="Data nașterii">
+  <label class="noyear"><input type="checkbox" name="noyear" ${b.md && !b.year ? 'checked' : ''}> fără an</label>`;
+// Reads one add/edit row; returns null (and says why) if it isn't valid.
+function bdRead(form){
+  const name = form.elements.name.value.trim(), date = form.elements.date.value;
+  if (!name || !date){ toast({ html:'Completează numele și data.' }); return null; }
+  return { name, md:date.slice(5), year:form.elements.noyear.checked ? null : +date.slice(0, 4) };
+}
+
+function renderBirthdays(){
+  const list = [...st.birthdays].sort((a, b) => nextBirthday(a).localeCompare(nextBirthday(b)) || a.name.localeCompare(b.name));
+  const row = b => {
+    if (bdEditing === b.id) return `<tr><td colspan="3"><form class="bdform" data-id="${b.id}">${bdInputs(b)}
+      <span class="btns"><button class="btn primary">Salvează</button><button type="button" class="btn" data-act="bdCancel">Renunță</button></span></form></td></tr>`;
+    const next = nextBirthday(b), days = daysUntil(next), age = b.year ? +next.slice(0, 4) - b.year : null;
+    return `<tr class="${days === 0 ? 'ants' : ''}">
+      <td><b>${esc(b.name)}</b><div class="meta">${days === 0 ? '🎉 azi' : days === 1 ? 'mâine' : `peste ${deTxt(days, 'zile')}`}${age ? ` · împlinește ${ageTxt(age)}` : ''}</div></td>
+      <td>${bdLabel(b)}</td>
+      <td class="bdact"><button class="chip" data-act="bdEdit" data-arg="${b.id}" aria-label="Modifică">✏️</button>
+        <button class="chip" data-act="bdDel" data-arg="${b.id}" aria-label="Șterge">🗑</button></td></tr>`;
+  };
+  main.innerHTML = `<div class="stack">
+    <section class="card"><h2>🎂 Zile de naștere</h2>
+      <div class="meta" style="margin-bottom:10px">Le vedeți amândoi și apar automat în calendar, în fiecare an.</div>
+      <form class="bdform" id="bdAdd">${bdInputs()}<button class="btn primary">Adaugă</button></form>
+    </section>
+    <section class="card">${list.length ? `<table class="bdt"><thead><tr><th>Nume</th><th>Ziua de naștere</th><th></th></tr></thead>
+      <tbody>${list.map(row).join('')}</tbody></table>` : '<div class="big-msg">Nicio zi de naștere încă.</div>'}</section>
+  </div>`;
+  main.querySelectorAll('.bdform').forEach(f => f.onsubmit = ev => {
+    ev.preventDefault();
+    const v = bdRead(f); if (!v) return;
+    if (f.dataset.id){ updateDoc(doc(col('birthdays'), f.dataset.id), v).catch(fail); bdEditing = null; }
+    else { addDoc(col('birthdays'), { ...v, createdBy:me(), createdAt:serverTimestamp() }).catch(fail); f.reset(); }
+    document.activeElement?.blur(); render();
+    toast({ html:`🎂 Salvat: ${esc(v.name)}` });
+  });
 }
 
 /* ----- Inbox ----- */
@@ -749,6 +824,12 @@ const ACT = {
   // Tapping the already selected day opens its timeline.
   pick: d => { if (d === selDate){ calView = 'day'; lsSet('cal.calview', 'day'); } else selDate = d; render(); },
   addOn: () => openEvent(null, { date:selDate }),
+  bdEdit: id => { bdEditing = id; render(); },
+  bdCancel: () => { bdEditing = null; render(); },
+  bdDel: id => {
+    const b = st.birthdays.find(x => x.id === id);
+    if (b && confirm(`Ștergi ziua de naștere: ${b.name}?`)) deleteDoc(doc(col('birthdays'), id)).catch(fail);
+  },
   open: (_, id, date) => { const e = findEv(id, date); if (e) openEvent(e); },
   status: (s, id, date) => { const e = findEv(id, date); if (e) setStatus(e, s); },
   nudgeRead: id => { const x = st.nudgesIn.find(x => x.id === id); if (x) markRead(x); },
