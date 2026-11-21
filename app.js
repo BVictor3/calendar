@@ -334,13 +334,21 @@ function scheduleRender(){
   setTimeout(() => { renderQueued = false; render(); }, 16);
 }
 const typing = () => main.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-main.addEventListener('focusout', () => setTimeout(() => { if (!typing()) scheduleRender(); }, 0));
+// Updates that arrive while you type are held back and applied once you leave the form. Never re-render
+// when focus just moves to another control in main (e.g. the "Adaugă" button on mousedown): replacing the
+// button between mousedown and mouseup swallows the click on desktop.
+let renderPending = false;
+main.addEventListener('focusout', ev => {
+  if (!renderPending || main.contains(ev.relatedTarget)) return;
+  setTimeout(() => { if (!typing()){ renderPending = false; scheduleRender(); } }, 0);
+});
 
 function render(){
   if (!st.sid) return;
   if (!st.space){ main.innerHTML = '<div class="center meta">Se încarcă…</div>'; return; }
   renderHeader();
-  if (typing()) return;
+  if (typing()){ renderPending = true; return; }
+  renderPending = false;
   ({ now:renderNow, week:renderCalendar, agenda:renderAgenda, inbox:renderInbox, bday:renderBirthdays }[st.view] || renderNow)();
 }
 
