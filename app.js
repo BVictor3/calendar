@@ -102,7 +102,7 @@ try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabMana
 catch { db = getFirestore(app); }
 
 /* ---------- State ---------- */
-const st = { user:null, sid:null, space:null, mine:[], shared:[], nudgesIn:[], nudgesOut:[], inbox:[], birthdays:[], view:lsGet('cal.view','now'), unsub:[], loaded:{} };
+const st = { user:null, sid:null, space:null, mine:[], shared:[], nudgesIn:[], nudgesOut:[], inbox:[], birthdays:[], view:lsGet('cal.view','now'), unsub:[], loaded:{}, denied:new Set() };
 let weekStart = mondayOf(new Date());
 // The "Calendar" tab shows a month grid, a week strip or a day timeline, all around one selected day.
 let calView = lsGet('cal.calview', 'week');
@@ -206,7 +206,25 @@ async function showJoin(sid, prof){
 
 /* ---------- Live data ---------- */
 function stopListeners(){ st.unsub.forEach(u => u()); st.unsub = []; }
-const listen = (ref, fn) => st.unsub.push(onSnapshot(ref, fn, fail));
+// A failed listener (e.g. permission denied before the Firestore rules were published) would otherwise
+// stay dead until a full reload; retry with backoff, and right away when the app comes back to the front.
+const retries = new Set();
+const listen = (ref, fn, key) => {
+  let unsub = null, tries = 0;
+  const stop = () => { unsub?.(); retries.delete(start); };
+  const start = () => {
+    retries.delete(start);
+    unsub = onSnapshot(ref, snap => { tries = 0; if (key) st.denied.delete(key); fn(snap); }, err => {
+      if (tries++ === 0) fail(err);
+      if (key){ st.denied.add(key); scheduleRender(); }
+      if (!st.unsub.includes(stop)) return;
+      retries.add(start);
+      setTimeout(() => { if (retries.has(start)) start(); }, Math.min(60e3, 5e3 * tries));
+    });
+  };
+  st.unsub.push(stop); start();
+};
+document.addEventListener('visibilitychange', () => { if (!document.hidden) [...retries].forEach(f => f()); });
 const docs = s => s.docs.map(d => ({ id:d.id, ...d.data() }));
 const shownNudges = new Set();
 
@@ -221,7 +239,7 @@ function enterSpace(sid){
   listen(query(col('nudges'), where('to', '==', uid)), s => { st.nudgesIn = docs(s); announceNudges(); scheduleRender(); });
   listen(query(col('nudges'), where('from', '==', uid)), s => { st.nudgesOut = docs(s); scheduleRender(); });
   listen(query(col('inbox'), where('owner', '==', uid)), s => { st.inbox = docs(s); scheduleRender(); });
-  listen(col('birthdays'), s => { st.birthdays = docs(s); scheduleRender(); });
+  listen(col('birthdays'), s => { st.birthdays = docs(s); scheduleRender(); }, 'birthdays');
 }
 
 // A nudge is shown once: closing it (× or 👍) marks it read for good.
@@ -584,6 +602,8 @@ function renderBirthdays(){
       <div class="meta" style="margin-bottom:10px">Le vedeți amândoi și apar automat în calendar, în fiecare an.</div>
       <form class="bdform" id="bdAdd">${bdInputs()}<button class="btn primary">Adaugă</button></form>
     </section>
+    ${st.denied.has('birthdays') ? `<div class="warn">⚠️ Firebase nu dă acces la zilele de naștere. Verifică dacă regulile publicate în
+      Firestore → Rules conțin secțiunea <b>birthdays</b> din firestore.rules. Reîncerc automat.</div>` : ''}
     <section class="card">${list.length ? `<table class="bdt"><thead><tr><th>Nume</th><th>Ziua de naștere</th><th></th></tr></thead>
       <tbody>${list.map(row).join('')}</tbody></table>` : '<div class="big-msg">Nicio zi de naștere încă.</div>'}</section>
   </div>`;
